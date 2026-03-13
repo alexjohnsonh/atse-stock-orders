@@ -150,7 +150,8 @@ const CONFIG = {
   ATSE_ORDERS_TAB: 'ATSE Orders',
   ATS_STOCK_TAB: 'ATS Stock',
   ATSE_STOCK_TAB: 'ATSE Stock',
-  ATS_STATUSES: ['Order Confirmed', 'Being Made', 'At Galvanisers', 'Being Packed', 'Shipped'],
+  ATS_STANDARD_STATUSES: ['Order Confirmed', 'Being Packed', 'Shipped'],
+  ATS_SPECIAL_STATUSES: ['Order Confirmed', 'Being Made', 'At Galvanisers', 'Being Packed', 'Shipped'],
   ATSE_STATUSES: ['Order Confirmed', 'Being Made', 'Being Packed', 'Shipped'],
   USERS: [
     { name: 'Alex', pin: '1111', role: 'admin' },
@@ -261,6 +262,28 @@ async function loadATSEStock() {
     });
   }
   return items;
+}
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function cleanProducts(productsStr, qtyStr) {
+  const products = productsStr.split(',').map(p => p.trim()).filter(p => p);
+  const qtys = qtyStr.split(',').map(q => q.trim()).filter(q => q);
+  if (products.length === 0) return { display: '—', codes: [] };
+  const parts = products.map((p, i) => qtys[i] ? `${p} (${qtys[i]})` : p);
+  return { display: parts.join(', '), codes: products };
+}
+
+function isStandardATSOrder(productCodes) {
+  const standardCodes = state.atsStock.standard.map(s => s.productCode.toUpperCase());
+  return productCodes.every(code => standardCodes.includes(code.toUpperCase()));
+}
+
+function getATSStatusesForOrder(order) {
+  const { codes } = cleanProducts(order.products, order.qty);
+  if (codes.length === 0) return CONFIG.ATS_SPECIAL_STATUSES;
+  return isStandardATSOrder(codes) ? CONFIG.ATS_STANDARD_STATUSES : CONFIG.ATS_SPECIAL_STATUSES;
 }
 
 // ═══════════════════════════════════════════
@@ -388,7 +411,7 @@ function renderApp() {
   if (state.loading) {
     content = '<div class="loading"><div class="spinner"></div>Loading data...</div>';
   } else if (state.activeTab === 'ats-orders') {
-    content = renderOrdersView(state.atsOrders, CONFIG.ATS_STATUSES, 'ATS');
+    content = renderOrdersView(state.atsOrders, CONFIG.ATS_SPECIAL_STATUSES, 'ATS');
   } else if (state.activeTab === 'atse-orders') {
     content = renderOrdersView(state.atseOrders, CONFIG.ATSE_STATUSES, 'ATSE');
   } else if (state.activeTab === 'ats-stock') {
@@ -422,7 +445,7 @@ function renderApp() {
     ${toast}`;
 }
 
-function renderOrdersView(orders, statuses, business) {
+function renderOrdersView(orders, defaultStatuses, business) {
   const active = orders.filter(o => o.status !== 'Shipped');
   const archived = orders.filter(o => o.status === 'Shipped');
   let html = '';
@@ -432,29 +455,33 @@ function renderOrdersView(orders, statuses, business) {
   } else {
     if (active.length > 0) {
       html += '<div class="section-title">Active Orders</div>';
-      active.forEach(o => { html += renderOrderCard(o, statuses, business, true); });
+      active.forEach(o => { html += renderOrderCard(o, defaultStatuses, business, true); });
     }
     if (archived.length > 0) {
       html += '<div class="section-title">Archived</div>';
-      archived.forEach(o => { html += renderOrderCard(o, statuses, business, false); });
+      archived.forEach(o => { html += renderOrderCard(o, defaultStatuses, business, false); });
     }
   }
   return html;
 }
 
-function renderOrderCard(order, statuses, business, canAdvance) {
+function renderOrderCard(order, defaultStatuses, business, canAdvance) {
+  // For ATS orders, dynamically determine standard vs special flow
+  const statuses = business === 'ATS' ? getATSStatusesForOrder(order) : defaultStatuses;
+  const { display, codes } = cleanProducts(order.products, order.qty);
+  const isStandard = business === 'ATS' && codes.length > 0 && isStandardATSOrder(codes);
   const currentIdx = statuses.indexOf(order.status);
   const nextStatus = currentIdx < statuses.length - 1 ? statuses[currentIdx + 1] : null;
+  const flowLabel = business === 'ATS' ? (isStandard ? 'Standard' : 'Special') : '';
 
   return `
     <div class="order-card" data-status="${order.status}">
       <div class="order-top">
-        <span class="order-po">${order.orderPO || 'No PO'}</span>
+        <span class="order-po">${order.orderPO || 'No PO'} ${flowLabel ? `<span style="font-size:10px;font-weight:600;color:${isStandard ? 'var(--green)' : 'var(--purple)'};background:${isStandard ? '#F0FDF4' : '#F5F3FF'};padding:2px 6px;border-radius:4px;">${flowLabel}</span>` : ''}</span>
         <span class="order-date">${order.dateOrdered}</span>
       </div>
       <div class="order-customer">${order.customer}</div>
-      <div class="order-product">${order.products}</div>
-      <div class="order-qty">Qty: ${order.qty}</div>
+      <div class="order-product">${display}</div>
       <div class="order-bottom">
         <span class="status-badge ${canAdvance && nextStatus ? 'clickable' : ''}"
               data-status="${order.status}"
