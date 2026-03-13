@@ -176,6 +176,7 @@ let state = {
   atseStock: [],
   loading: false,
   editingStock: null,
+  addingOddStock: false,
   modal: null,
   toast: ''
 };
@@ -524,7 +525,7 @@ function renderATSStockView() {
   });
 
   html += '<div class="section-title">Odd Stock</div>';
-  if (state.atsStock.odd.length === 0) {
+  if (state.atsStock.odd.length === 0 && !state.addingOddStock) {
     html += '<div class="empty">No odd stock data</div>';
   }
   state.atsStock.odd.forEach((s, i) => {
@@ -545,6 +546,21 @@ function renderATSStockView() {
         `}
       </div>`;
   });
+
+  // Add odd stock form
+  if (state.addingOddStock) {
+    html += `
+      <div class="stock-card" style="border:2px dashed var(--primary);">
+        <div class="stock-row"><span class="stock-label">Product Code</span><span class="stock-value"><input type="text" id="new-odd-code" placeholder="e.g. WC7575D" style="width:140px;"></span></div>
+        <div class="stock-row"><span class="stock-label">QTY</span><span class="stock-value"><input type="number" id="new-odd-qty" value="0"></span></div>
+        <div class="stock-save-row">
+          <button class="stock-cancel-btn" data-action="cancel-add-odd">Cancel</button>
+          <button class="stock-save-btn" data-action="save-new-odd">Add</button>
+        </div>
+      </div>`;
+  } else {
+    html += `<button data-action="add-odd-stock" style="display:block;width:100%;padding:12px;border-radius:var(--radius);border:2px dashed var(--border);background:none;color:var(--text-muted);font-size:13px;font-weight:600;margin-bottom:10px;cursor:pointer;">+ Add Odd Stock Product</button>`;
+  }
 
   return html;
 }
@@ -718,6 +734,27 @@ function attachEvents() {
   });
   document.querySelectorAll('[data-action="confirm-modal"]').forEach(el => {
     el.onclick = () => { if (state.modal && state.modal.onConfirm) state.modal.onConfirm(); };
+  });
+
+  // Add odd stock
+  document.querySelectorAll('[data-action="add-odd-stock"]').forEach(el => {
+    el.onclick = () => { state.addingOddStock = true; render(); };
+  });
+  document.querySelectorAll('[data-action="cancel-add-odd"]').forEach(el => {
+    el.onclick = () => { state.addingOddStock = false; render(); };
+  });
+  document.querySelectorAll('[data-action="save-new-odd"]').forEach(el => {
+    el.onclick = async () => {
+      const code = (document.getElementById('new-odd-code')?.value || '').trim();
+      const qty = document.getElementById('new-odd-qty')?.value || '0';
+      if (!code) { showToast('⚠️ Enter a product code'); return; }
+      const newItem = { sheetRow: null, productCode: code, qty: qty };
+      state.atsStock.odd.push(newItem);
+      const success = await updateStock(code, CONFIG.ATS_STOCK_TAB, { qty, action: 'add-odd' });
+      state.addingOddStock = false;
+      showToast(success ? `✓ ${code} added` : `✓ Added locally (webhook pending)`);
+      render();
+    };
   });
 }
 
