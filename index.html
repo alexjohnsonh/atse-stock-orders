@@ -208,7 +208,7 @@ async function loadOrders(tabName) {
 }
 
 async function loadATSStock() {
-  const rows = await fetchSheet(CONFIG.ATS_STOCK_TAB, 'A1:G50');
+  const rows = await fetchSheet(CONFIG.ATS_STOCK_TAB, 'A1:H50');
   const standard = [];
   const odd = [];
   let section = null;
@@ -231,7 +231,8 @@ async function loadATSStock() {
         qtyInProd: r[3] || '',
         dueDate: r[4] || '',
         qtyBackOrder: r[5] || '',
-        who: r[6] || ''
+        who: r[6] || '',
+        notes: r[7] || ''
       });
     } else if (section === 'odd') {
       const code = (r[1] || '').trim();
@@ -239,7 +240,8 @@ async function loadATSStock() {
       odd.push({
         sheetRow: i + 1,
         productCode: code,
-        qty: r[2] || '0'
+        qty: r[2] || '0',
+        notes: r[3] || ''
       });
     }
   }
@@ -259,7 +261,8 @@ async function loadATSEStock() {
       productCode: code,
       qty45Relief: r[1] || '0',
       qty45NoRelief: r[2] || '0',
-      qtyNo45: r[3] || '0'
+      qtyNo45: r[3] || '0',
+      notes: r[4] || ''
     });
   }
   return items;
@@ -511,6 +514,7 @@ function renderATSStockView() {
         <div class="stock-row"><span class="stock-label">Due Date</span><span class="stock-value">${editing ? `<input type="text" data-field="dueDate" value="${s.dueDate}" placeholder="DD/MM">` : (s.dueDate || '—')}</span></div>
         <div class="stock-row"><span class="stock-label">Back Order</span><span class="stock-value">${editing ? `<input type="number" data-field="qtyBackOrder" value="${s.qtyBackOrder}">` : (s.qtyBackOrder || '—')}</span></div>
         <div class="stock-row"><span class="stock-label">Who?</span><span class="stock-value">${editing ? `<input type="text" data-field="who" value="${s.who}">` : (s.who || '—')}</span></div>
+        <div class="stock-row"><span class="stock-label">Notes</span><span class="stock-value">${editing ? `<input type="text" data-field="notes" value="${s.notes || ''}" placeholder="e.g. missing x member" style="width:160px;">` : (s.notes || '—')}</span></div>
         ${editing ? `
           <div class="stock-save-row">
             <button class="stock-cancel-btn" data-action="cancel-edit">Cancel</button>
@@ -534,6 +538,7 @@ function renderATSStockView() {
       <div class="stock-card" data-stock-id="ats-odd-${i}">
         <div class="stock-code">${s.productCode}</div>
         <div class="stock-row"><span class="stock-label">QTY</span><span class="stock-value">${editing ? `<input type="number" data-field="qty" value="${s.qty}">` : s.qty}</span></div>
+        <div class="stock-row"><span class="stock-label">Notes</span><span class="stock-value">${editing ? `<input type="text" data-field="notes" value="${s.notes || ''}" placeholder="e.g. missing x member" style="width:160px;">` : (s.notes || '—')}</span></div>
         ${editing ? `
           <div class="stock-save-row">
             <button class="stock-cancel-btn" data-action="cancel-edit">Cancel</button>
@@ -553,6 +558,7 @@ function renderATSStockView() {
       <div class="stock-card" style="border:2px dashed var(--primary);">
         <div class="stock-row"><span class="stock-label">Product Code</span><span class="stock-value"><input type="text" id="new-odd-code" placeholder="e.g. WC7575D" style="width:140px;"></span></div>
         <div class="stock-row"><span class="stock-label">QTY</span><span class="stock-value"><input type="number" id="new-odd-qty" value="0"></span></div>
+        <div class="stock-row"><span class="stock-label">Notes</span><span class="stock-value"><input type="text" id="new-odd-notes" placeholder="Optional" style="width:160px;"></span></div>
         <div class="stock-save-row">
           <button class="stock-cancel-btn" data-action="cancel-add-odd">Cancel</button>
           <button class="stock-save-btn" data-action="save-new-odd">Add</button>
@@ -579,6 +585,7 @@ function renderATSEStockView() {
         <div class="stock-row"><span class="stock-label">45's & Relief Cuts</span><span class="stock-value">${editing ? `<input type="number" data-field="qty45Relief" value="${s.qty45Relief}">` : s.qty45Relief}</span></div>
         <div class="stock-row"><span class="stock-label">45's No Relief Cuts</span><span class="stock-value">${editing ? `<input type="number" data-field="qty45NoRelief" value="${s.qty45NoRelief}">` : s.qty45NoRelief}</span></div>
         <div class="stock-row"><span class="stock-label">No 45s or Relief</span><span class="stock-value">${editing ? `<input type="number" data-field="qtyNo45" value="${s.qtyNo45}">` : s.qtyNo45}</span></div>
+        <div class="stock-row"><span class="stock-label">Notes</span><span class="stock-value">${editing ? `<input type="text" data-field="notes" value="${s.notes || ''}" placeholder="Optional" style="width:160px;">` : (s.notes || '—')}</span></div>
         ${editing ? `
           <div class="stock-save-row">
             <button class="stock-cancel-btn" data-action="cancel-edit">Cancel</button>
@@ -747,10 +754,11 @@ function attachEvents() {
     el.onclick = async () => {
       const code = (document.getElementById('new-odd-code')?.value || '').trim();
       const qty = document.getElementById('new-odd-qty')?.value || '0';
+      const notes = (document.getElementById('new-odd-notes')?.value || '').trim();
       if (!code) { showToast('⚠️ Enter a product code'); return; }
-      const newItem = { sheetRow: null, productCode: code, qty: qty };
+      const newItem = { sheetRow: null, productCode: code, qty: qty, notes: notes };
       state.atsStock.odd.push(newItem);
-      const success = await updateStock(code, CONFIG.ATS_STOCK_TAB, { qty, action: 'add-odd' });
+      const success = await updateStock(code, CONFIG.ATS_STOCK_TAB, { qty, notes, action: 'add-odd' });
       state.addingOddStock = false;
       showToast(success ? `✓ ${code} added` : `✓ Added locally (webhook pending)`);
       render();
