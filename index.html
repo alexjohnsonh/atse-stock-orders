@@ -272,10 +272,10 @@ async function loadATSEStock() {
 // HELPERS
 // ═══════════════════════════════════════════
 function cleanProducts(productsStr, qtyStr) {
-  const products = productsStr.split(',').map(p => p.trim()).filter(p => p);
-  const qtys = qtyStr.split(',').map(q => q.trim()).filter(q => q);
+  const products = productsStr.split(',').map(p => p.trim()).filter(p => p && p !== '-');
+  const qtys = qtyStr.split(',').map(q => q.trim()).filter(q => q && q !== '-');
   if (products.length === 0) return { display: '—', codes: [] };
-  const parts = products.map((p, i) => qtys[i] ? `${p} (${qtys[i]})` : p);
+  const parts = products.map((p, i) => qtys[i] && qtys[i] !== '0' ? `${p} (${qtys[i]})` : p);
   return { display: parts.join(', '), codes: products };
 }
 
