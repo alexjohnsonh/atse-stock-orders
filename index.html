@@ -717,7 +717,7 @@ function attachEvents() {
       const card = el.closest('.stock-card');
       const inputs = card.querySelectorAll('input');
       const data = {};
-      inputs.forEach(inp => { data[inp.dataset.field] = inp.value || ' '; });
+      inputs.forEach(inp => { data[inp.dataset.field] = inp.value || '-'; });
 
       let productCode = '';
       let tab = '';
