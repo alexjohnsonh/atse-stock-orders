@@ -488,12 +488,10 @@ function renderOrderCard(order, defaultStatuses, business, canAdvance) {
       <div class="order-customer">${order.customer}</div>
       <div class="order-product">${display}</div>
       <div class="order-bottom">
-        <span class="status-badge ${canAdvance && nextStatus ? 'clickable' : ''}"
-              data-status="${order.status}"
-              ${canAdvance && nextStatus ? `data-action="advance-status" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}"` : ''}>
-          ${order.status}
-        </span>
-        ${canAdvance && nextStatus ? `<span class="status-next">→ ${nextStatus}</span>` : ''}
+        ${canAdvance && nextStatus ? `<span class="status-badge clickable" data-status="${nextStatus}"
+              data-action="advance-status" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}">
+          ${nextStatus}
+        </span>` : `<span class="status-badge" data-status="${order.status}">${order.status}</span>`}
       </div>
     </div>`;
 }
