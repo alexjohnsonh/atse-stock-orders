@@ -417,9 +417,9 @@ function renderApp() {
   if (state.loading) {
     content = '<div class="loading"><div class="spinner"></div>Loading data...</div>';
   } else if (state.activeTab === 'ats-orders') {
-    content = renderOrdersView(state.atsOrders, CONFIG.ATS_SPECIAL_STATUSES, 'ATS');
+    content = renderOrdersView(state.atsOrders, CONFIG.ATS_SPECIAL_STATUSES, 'Advanced Traffic Supplies');
   } else if (state.activeTab === 'atse-orders') {
-    content = renderOrdersView(state.atseOrders, CONFIG.ATSE_STATUSES, 'ATSE');
+    content = renderOrdersView(state.atseOrders, CONFIG.ATSE_STATUSES, 'ATS Environmental');
   } else if (state.activeTab === 'ats-stock') {
     content = renderATSStockView();
   } else if (state.activeTab === 'atse-stock') {
@@ -473,12 +473,12 @@ function renderOrdersView(orders, defaultStatuses, business) {
 
 function renderOrderCard(order, defaultStatuses, business, canAdvance) {
   // For ATS orders, dynamically determine standard vs special flow
-  const statuses = business === 'ATS' ? getATSStatusesForOrder(order) : defaultStatuses;
+  const statuses = business === 'Advanced Traffic Supplies' ? getATSStatusesForOrder(order) : defaultStatuses;
   const { display, codes } = cleanProducts(order.products, order.qty);
-  const isStandard = business === 'ATS' && codes.length > 0 && isStandardATSOrder(codes);
+  const isStandard = business === 'Advanced Traffic Supplies' && codes.length > 0 && isStandardATSOrder(codes);
   const currentIdx = statuses.indexOf(order.status);
   const nextStatus = currentIdx < statuses.length - 1 ? statuses[currentIdx + 1] : null;
-  const flowLabel = business === 'ATS' ? (isStandard ? 'Standard' : 'Special') : '';
+  const flowLabel = business === 'Advanced Traffic Supplies' ? (isStandard ? 'Standard' : 'Special') : '';
 
   return `
     <div class="order-card" data-status="${order.status}">
@@ -687,7 +687,7 @@ function attachEvents() {
         text: `Move <strong>${po}</strong> to <strong>${next}</strong>?`,
         onConfirm: async () => {
           const success = await updateStatus(po, next, biz);
-          const orders = biz === 'ATS' ? state.atsOrders : state.atseOrders;
+          const orders = biz === 'Advanced Traffic Supplies' ? state.atsOrders : state.atseOrders;
           const order = orders.find(o => o.orderPO === po);
           if (order) {
             order.status = next;
