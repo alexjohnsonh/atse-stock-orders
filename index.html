@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#164E63">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <title>ATS/E Stock & Orders</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -73,6 +74,7 @@ input, select { font-family: inherit; }
 
 /* ── Order Card ── */
 .order-card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid var(--grey); transition: all 0.2s; }
+.order-card[data-status="Order Created"] { border-left-color: var(--grey); }
 .order-card[data-status="Order Confirmed"] { border-left-color: var(--blue); }
 .order-card[data-status="Being Made"] { border-left-color: var(--amber); }
 .order-card[data-status="At Galvanisers"] { border-left-color: var(--purple); }
@@ -87,6 +89,7 @@ input, select { font-family: inherit; }
 .order-bottom { display:flex; justify-content:space-between; align-items:center; margin-top: 10px; }
 .status-badge { display:inline-flex; align-items:center; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; color: white; transition: all 0.15s; }
 .status-badge.clickable:active { transform: scale(0.95); filter: brightness(0.9); }
+.status-badge[data-status="Order Created"] { background: var(--grey); }
 .status-badge[data-status="Order Confirmed"] { background: var(--blue); }
 .status-badge[data-status="Being Made"] { background: var(--amber); }
 .status-badge[data-status="At Galvanisers"] { background: var(--purple); }
@@ -150,9 +153,9 @@ const CONFIG = {
   ATSE_ORDERS_TAB: 'ATSE Orders',
   ATS_STOCK_TAB: 'ATS Stock',
   ATSE_STOCK_TAB: 'ATSE Stock',
-  ATS_STANDARD_STATUSES: ['Order Confirmed', 'Being Packed', 'Shipped'],
-  ATS_SPECIAL_STATUSES: ['Order Confirmed', 'Being Made', 'At Galvanisers', 'Being Packed', 'Shipped'],
-  ATSE_STATUSES: ['Order Confirmed', 'Being Made', 'Being Packed', 'Shipped'],
+  ATS_STANDARD_STATUSES: ['Order Created', 'Order Confirmed', 'Being Packed', 'Shipped'],
+  ATS_SPECIAL_STATUSES: ['Order Created', 'Order Confirmed', 'Being Made', 'At Galvanisers', 'Being Packed', 'Shipped'],
+  ATSE_STATUSES: ['Order Created', 'Order Confirmed', 'Being Made', 'Being Packed', 'Shipped'],
   USERS: [
     { name: 'Alex', pin: '1111', role: 'admin' },
     { name: 'Kelly', pin: '2222', role: 'admin' }
@@ -202,7 +205,7 @@ async function loadOrders(tabName) {
     products: r[4] || '',
     qty: r[5] || '',
     dateOrdered: r[6] || '',
-    status: r[7] || 'Order Confirmed',
+    status: r[7] || 'Order Created',
     lastUpdated: r[8] || ''
   }));
 }
