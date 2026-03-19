@@ -488,10 +488,16 @@ function renderOrderCard(order, defaultStatuses, business, canAdvance) {
       <div class="order-customer">${order.customer}</div>
       <div class="order-product">${display}</div>
       <div class="order-bottom">
+        ${order.status !== 'Order Created' ? `<span style="font-size:13px;font-weight:600;color:${
+          order.status === 'Order Confirmed' ? 'var(--blue)' :
+          order.status === 'Being Made' ? 'var(--amber)' :
+          order.status === 'At Galvanisers' ? 'var(--purple)' :
+          order.status === 'Being Packed' ? 'var(--green)' :
+          order.status === 'Shipped' ? 'var(--grey)' : 'var(--blue)'};">${order.status}</span>` : ''}
         ${canAdvance && nextStatus ? `<span class="status-badge clickable" data-status="${nextStatus}"
               data-action="advance-status" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}">
           ${nextStatus}
-        </span>` : `<span class="status-badge" data-status="${order.status}">${order.status}</span>`}
+        </span>` : ''}
       </div>
     </div>`;
 }
