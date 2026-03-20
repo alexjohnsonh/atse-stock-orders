@@ -651,6 +651,7 @@ function attachEvents() {
         if (user) {
           state.currentUser = user;
           state.screen = 'app';
+          try { localStorage.setItem('atse-user', JSON.stringify({ name: user.name, pin: user.pin })); } catch(e) {}
           loadData();
         } else {
           state.pinError = 'Wrong PIN';
@@ -666,7 +667,7 @@ function attachEvents() {
   });
 
   document.querySelectorAll('[data-action="logout"]').forEach(el => {
-    el.onclick = () => { state.screen = 'login'; state.currentUser = null; state.pin = ''; render(); };
+    el.onclick = () => { state.screen = 'login'; state.currentUser = null; state.pin = ''; try { localStorage.removeItem('atse-user'); } catch(e) {} render(); };
   });
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -779,6 +780,21 @@ function attachEvents() {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
 }
+
+// Auto-login from saved session
+try {
+  const saved = localStorage.getItem('atse-user');
+  if (saved) {
+    const user = JSON.parse(saved);
+    const match = CONFIG.USERS.find(u => u.name === user.name && u.pin === user.pin);
+    if (match) {
+      state.currentUser = match;
+      state.screen = 'app';
+      loadData();
+    }
+  }
+} catch(e) {}
+
 render();
 </script>
 </body>
