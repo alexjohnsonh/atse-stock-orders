@@ -108,10 +108,10 @@ input,select,textarea { font-family:inherit; }
 .toast.show { transform:translateX(-50%) translateY(0); }
 
 /* ── Projects / Map ── */
-.map-wrap { position:relative; background:#dde8ee; border-radius:var(--radius); overflow:hidden; margin-bottom:16px; border:1px solid var(--border); }
+.map-wrap { position:relative; background:#a8c8d8; border-radius:var(--radius); overflow:hidden; margin-bottom:16px; border:1px solid var(--border); }
 #world-map { width:100%; height:auto; display:block; }
-.country-path { fill:#b8cdd6; stroke:white; stroke-width:0.4; cursor:default; transition:fill 0.15s; }
-.country-path.has-projects { fill:var(--primary); cursor:pointer; }
+.country-path { fill:#d4dfe6; stroke:#8ab0c0; stroke-width:0.4; cursor:default; transition:fill 0.15s; }
+.country-path.has-projects { fill:var(--primary); stroke:white; stroke-width:0.6; cursor:pointer; }
 .country-path.has-projects:hover { fill:var(--primary-dark); }
 .country-path.selected-country { fill:#0a2d3a !important; stroke:white; stroke-width:1; }
 #map-tooltip { display:none; position:absolute; background:rgba(10,20,30,0.92); color:white; padding:8px 12px; border-radius:8px; font-size:12px; pointer-events:none; z-index:10; max-width:200px; line-height:1.6; }
@@ -275,11 +275,11 @@ async function loadATSEStock() {
 
 async function loadProjects() {
   try {
-    const rows=await fetchSheet(CONFIG.PROJECTS_TAB,'A2:H200');
+    const rows=await fetchSheet(CONFIG.PROJECTS_TAB,'A2:I200');
     return rows.map(r=>({
       projectId:r[0]||'',projectName:r[1]||'',countryCode:(r[2]||'').toUpperCase(),
       date:r[3]||'',client:r[4]||'',description:r[5]||'',
-      status:r[6]||'Enquiry',lastStatusUpdate:r[7]||''
+      status:r[6]||'Enquiry',lastStatusUpdate:r[7]||'',contact:r[8]||''
     })).filter(p=>p.projectName);
   } catch(e){ return []; }
 }
@@ -375,7 +375,7 @@ async function submitProject() {
   const proj={
     projectId:String(newId),projectName:d.projectName,client:d.client,
     countryCode:d.countryCode,date:d.date||today,description:d.description||'',
-    status:d.status||'Enquiry',lastStatusUpdate:today
+    status:d.status||'Enquiry',lastStatusUpdate:today,contact:d.contact||''
   };
   try {
     await fetch(CONFIG.WEBHOOK_PROJECTS,{method:'POST',body:JSON.stringify(proj)});
@@ -438,16 +438,20 @@ function renderMapPaths(mapEl) {
   const activeCodes=new Set(state.projects.filter(p=>p.status!=='Archived').map(p=>p.countryCode));
   mapEl.innerHTML='';
   state.mapFeatures.forEach(f=>{
-    const iso=ISO_N2A[String(f.id)];
-    if(!iso||!f.geometry)return;
-    const path=document.createElementNS(ns,'path');
-    path.setAttribute('d',geoPathStr(f.geometry,W,H));
-    path.setAttribute('data-iso',iso);
-    path.setAttribute('data-name',ISO_NAMES[iso]||iso);
-    path.classList.add('country-path');
-    if(activeCodes.has(iso))path.classList.add('has-projects');
-    if(iso===state.selectedCountry)path.classList.add('selected-country');
-    mapEl.appendChild(path);
+    try {
+      const iso=ISO_N2A[String(f.id)];
+      if(!iso||!f.geometry)return;
+      const d=geoPathStr(f.geometry,W,H);
+      if(!d)return;
+      const path=document.createElementNS(ns,'path');
+      path.setAttribute('d',d);
+      path.setAttribute('data-iso',iso);
+      path.setAttribute('data-name',ISO_NAMES[iso]||iso);
+      path.classList.add('country-path');
+      if(activeCodes.has(iso))path.classList.add('has-projects');
+      if(iso===state.selectedCountry)path.classList.add('selected-country');
+      mapEl.appendChild(path);
+    } catch(e) { /* skip malformed feature */ }
   });
   const loadEl=document.getElementById('map-loading');
   if(loadEl)loadEl.style.display='none';
@@ -533,7 +537,7 @@ function renderCountryProjects() {
         <div class="project-name">${p.projectName}</div>
         <div class="project-date">${p.date||''}</div>
       </div>
-      <div class="project-client">👤 ${p.client}</div>
+      <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
       ${p.description?`<div class="project-desc">${p.description}</div>`:''}
       <div class="project-footer">
         <span class="proj-status ${p.status}" style="background:${statusColor}">${p.status}</span>
@@ -661,6 +665,10 @@ function renderAddProjectModal(){
       <div class="form-group">
         <label class="form-label">Description</label>
         <textarea class="form-input" id="proj-desc" placeholder="What do they need?">${d.description||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contact Email</label>
+        <input class="form-input" type="email" id="proj-contact" placeholder="contact@example.com" value="${d.contact||''}">
       </div>
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -883,6 +891,7 @@ function attachEvents(){
         countryCode:document.getElementById('proj-country')?.value||'',
         date:document.getElementById('proj-date')?.value||'',
         description:(document.getElementById('proj-desc')?.value||'').trim(),
+        contact:(document.getElementById('proj-contact')?.value||'').trim(),
         status:document.getElementById('proj-status')?.value||'Enquiry'
       };
       await submitProject();
