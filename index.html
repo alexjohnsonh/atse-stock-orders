@@ -150,6 +150,7 @@ const CONFIG = {
   WEBHOOK_STATUS:'https://hooks.zapier.com/hooks/catch/24033816/uphhw3h/',
   WEBHOOK_STOCK:'https://hooks.zapier.com/hooks/catch/24033816/uph15m4/',
   WEBHOOK_PROJECTS:'https://hooks.zapier.com/hooks/catch/24033816/43mrz4k/',
+  WEBHOOK_PROJECTS_UPDATE:'', // Set to a Zapier "Update Spreadsheet Row" webhook when ready
   ATS_ORDERS_TAB:'ATS Orders', ATSE_ORDERS_TAB:'ATSE Orders',
   ATS_STOCK_TAB:'ATS Stock', ATSE_STOCK_TAB:'ATSE Stock',
   PROJECTS_TAB:'ATSE Projects',
@@ -393,16 +394,22 @@ async function updateProject() {
   const orig=state.editingProject;
   if(!d.projectName||!d.countryCode||!d.client){showToast('⚠️ Fill in name, client & country');return;}
   const today=new Date().toLocaleDateString('en-GB').replace(/\//g,'-');
-  const updated={...orig,...d,lastStatusUpdate:today,type:'update'};
-  try {
-    await fetch(CONFIG.WEBHOOK_PROJECTS,{method:'POST',body:JSON.stringify(updated)});
-    const idx=state.projects.findIndex(p=>p.projectId===orig.projectId);
-    if(idx>=0)state.projects[idx]={...orig,...d,lastStatusUpdate:today};
-    state.editingProject=null;state.addProjectData={};state.showAddProject=false;
+  const updated={...orig,...d,lastStatusUpdate:today};
+  // Update local state immediately
+  const idx=state.projects.findIndex(p=>p.projectId===orig.projectId);
+  if(idx>=0)state.projects[idx]=updated;
+  state.editingProject=null;state.addProjectData={};state.showAddProject=false;
+  // Sync to sheet via update webhook if configured; otherwise local-only
+  if(CONFIG.WEBHOOK_PROJECTS_UPDATE){
+    try{
+      await fetch(CONFIG.WEBHOOK_PROJECTS_UPDATE,{method:'POST',body:JSON.stringify({...updated,type:'update'})});
+      showToast(`✓ ${updated.projectName} updated`);
+    } catch(e){showToast('⚠️ Saved locally — sheet sync failed');}
+  } else {
     showToast(`✓ ${updated.projectName} updated`);
-    render();
-    setTimeout(()=>{if(state.mapFeatures)renderMapColors();renderCountryProjects();},50);
-  } catch(e){showToast('❌ Failed to update project');}
+  }
+  render();
+  setTimeout(()=>{if(state.mapFeatures)renderMapColors();renderCountryProjects();},50);
 }
 function openEditProject(projId){
   const proj=state.projects.find(p=>p.projectId===projId);
