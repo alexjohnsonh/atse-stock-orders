@@ -112,7 +112,9 @@ input,select,textarea { font-family:inherit; }
 #world-map { width:100%; height:auto; display:block; }
 .country-path { fill:#d4dfe6; stroke:#8ab0c0; stroke-width:0.4; cursor:default; transition:fill 0.15s; }
 .country-path.has-projects { fill:var(--primary); stroke:white; stroke-width:0.6; cursor:pointer; }
-.country-path.has-projects:hover { fill:var(--primary-dark); }
+@media (hover: hover) and (pointer: fine) {
+  .country-path.has-projects:hover { fill:var(--primary-dark); }
+}
 .country-path.selected-country { fill:#0a2d3a !important; stroke:white; stroke-width:1; }
 #map-tooltip { display:none; position:absolute; background:rgba(10,20,30,0.92); color:white; padding:8px 12px; border-radius:8px; font-size:12px; pointer-events:none; z-index:10; max-width:200px; line-height:1.6; }
 .project-card { background:var(--card); border-radius:var(--radius); padding:16px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); border-left:4px solid var(--primary); }
@@ -446,10 +448,17 @@ function geoPathStr(geometry,W,H) {
   let d='';
   polys.forEach(rings=>{
     rings.forEach(ring=>{
+      let prevX=null;
       ring.forEach((pt,i)=>{
-        const x=((pt[0]+180)*(W/360)).toFixed(1);
+        const x=parseFloat(((pt[0]+180)*(W/360)).toFixed(1));
         const y=((90-pt[1])*(H/180)).toFixed(1);
-        d+=(i===0?'M':'L')+x+','+y;
+        // Detect anti-meridian crossing (Russia etc.) — skip the line across the map
+        if(i===0||prevX===null||Math.abs(x-prevX)>W/2){
+          d+='M'+x+','+y;
+        } else {
+          d+='L'+x+','+y;
+        }
+        prevX=x;
       });
       d+='Z';
     });
