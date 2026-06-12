@@ -278,7 +278,7 @@ async function loadATSEStock() {
 
 async function loadProjects() {
   try {
-    const rows=await fetchSheet(CONFIG.PROJECTS_TAB,'A2:I200');
+    const rows=await fetchSheet(CONFIG.PROJECTS_TAB,'A2:J200');
     return rows.map(r=>({
       projectId:r[0]||'',projectName:r[1]||'',countryCode:(r[2]||'').toUpperCase(),
       date:r[3]||'',client:r[4]||'',description:r[5]||'',
