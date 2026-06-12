@@ -585,6 +585,38 @@ function positionTooltip(e,tooltip) {
 function renderCountryProjects() {
   const container=document.getElementById('country-projects');
   if(!container)return;
+  // Show/hide enquiries section
+  const enquirySection=document.getElementById('enquiries-section');
+  if(enquirySection){
+    if(state.selectedCountry){
+      enquirySection.innerHTML='';
+    } else {
+      const enquiries=state.projects.filter(p=>p.status==='Enquiry');
+      if(enquiries.length>0){
+        let html=`<div class="section-title" style="margin-top:16px;">New Enquiries</div>`;
+        enquiries.forEach(p=>{
+          html+=`<div class="project-card" style="border-left-color:var(--grey);">
+            <div class="project-card-top">
+              <div class="project-name">${p.projectName}</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div class="project-date">${fmtDate(p.date)}</div>
+                <button onclick="openEditProject('${p.projectId}')" style="background:none;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;padding:2px 8px;color:var(--text-muted);border-radius:4px;">Edit</button>
+              </div>
+            </div>
+            <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
+            ${p.description?`<div class="project-desc">${p.description}</div>`:''}
+            ${p.ActionPoints?`<div class="project-desc" style="margin-top:6px;padding:8px 10px;background:#F0F9FF;border-radius:8px;border-left:3px solid var(--primary);"><span style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:2px;">Action Points</span>${p.ActionPoints}</div>`:''}
+            <div class="project-footer">
+              <span class="proj-status Enquiry" style="background:var(--grey);">Enquiry · ${countryName(p.countryCode)}</span>
+            </div>
+          </div>`;
+        });
+        enquirySection.innerHTML=html;
+      } else {
+        enquirySection.innerHTML='';
+      }
+    }
+  }
   if(!state.selectedCountry){container.innerHTML='<div class="empty" style="padding:16px 0 0;">Tap a highlighted country to see its projects</div>';return;}
   const name=countryName(state.selectedCountry);
   const projs=state.projects
@@ -677,33 +709,10 @@ function renderApp(){
 }
 
 function renderProjectsTab(){
-  const enquiries=state.projects.filter(p=>p.status==='Enquiry');
   const active=state.projects.filter(p=>p.status!=='Archived'&&p.status!=='Enquiry');
   const countries=new Set(active.map(p=>p.countryCode));
-  let enquiryHtml='';
-  if(enquiries.length>0){
-    enquiryHtml=`<div class="section-title" style="margin-top:4px;">New Enquiries</div>`;
-    enquiries.forEach(p=>{
-      enquiryHtml+=`<div class="project-card" style="border-left-color:var(--grey);">
-        <div class="project-card-top">
-          <div class="project-name">${p.projectName}</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div class="project-date">${fmtDate(p.date)}</div>
-            <button onclick="openEditProject('${p.projectId}')" style="background:none;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;padding:2px 8px;color:var(--text-muted);border-radius:4px;">Edit</button>
-          </div>
-        </div>
-        <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
-        ${p.description?`<div class="project-desc">${p.description}</div>`:''}
-        ${p.ActionPoints?`<div class="project-desc" style="margin-top:6px;padding:8px 10px;background:#F0F9FF;border-radius:8px;border-left:3px solid var(--primary);"><span style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:2px;">Action Points</span>${p.ActionPoints}</div>`:''}
-        <div class="project-footer">
-          <span class="proj-status Enquiry" style="background:var(--grey);">Enquiry · ${countryName(p.countryCode)}</span>
-        </div>
-      </div>`;
-    });
-  }
   return`
-    ${enquiryHtml}
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;${enquiries.length>0?'margin-top:16px;':''}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
       <div>
         <div style="font-size:18px;font-weight:800;color:var(--text);">Projects Map</div>
         <div class="map-stats">${active.length} active project${active.length!==1?'s':''} · ${countries.size} countr${countries.size!==1?'ies':'y'}</div>
@@ -722,7 +731,8 @@ function renderProjectsTab(){
     </div>
     <div id="country-projects">
       <div class="empty" style="padding:16px 0 0;">Tap a highlighted country to see its projects</div>
-    </div>`;
+    </div>
+    <div id="enquiries-section"></div>`;
 }
 
 function renderAddProjectModal(){
