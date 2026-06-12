@@ -437,9 +437,13 @@ function renderMapPaths(mapEl) {
   const ns='http://www.w3.org/2000/svg';
   const activeCodes=new Set(state.projects.filter(p=>p.status!=='Archived').map(p=>p.countryCode));
   mapEl.innerHTML='';
+  let auFound=false;
   state.mapFeatures.forEach(f=>{
     try {
-      const iso=ISO_N2A[String(f.id)];
+      // Handle both padded ("036") and unpadded ("36") numeric IDs from TopoJSON
+      const idStr=String(f.id);
+      const iso=ISO_N2A[idStr]||ISO_N2A[String(parseInt(idStr,10))];
+      if(idStr==='36'||idStr==='036'||iso==='AU'){auFound=true;console.log('AU feature found:',idStr,iso,!!f.geometry);}
       if(!iso||!f.geometry)return;
       const d=geoPathStr(f.geometry,W,H);
       if(!d)return;
@@ -451,8 +455,9 @@ function renderMapPaths(mapEl) {
       if(activeCodes.has(iso))path.classList.add('has-projects');
       if(iso===state.selectedCountry)path.classList.add('selected-country');
       mapEl.appendChild(path);
-    } catch(e) { /* skip malformed feature */ }
+    } catch(e) { console.warn('Map feature error:',f.id,e); }
   });
+  if(!auFound)console.warn('Australia (ID 36/036) not found in map features at all. Total features:',state.mapFeatures.length);
   const loadEl=document.getElementById('map-loading');
   if(loadEl)loadEl.style.display='none';
   mapEl.style.display='block';
