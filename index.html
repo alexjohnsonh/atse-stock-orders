@@ -492,7 +492,7 @@ async function initWorldMap() {
 function renderMapPaths(mapEl) {
   const W=800,H=400;
   const ns='http://www.w3.org/2000/svg';
-  const activeCodes=new Set(state.projects.filter(p=>p.status!=='Archived').map(p=>p.countryCode));
+  const activeCodes=new Set(state.projects.filter(p=>p.status!=='Archived'&&p.status!=='Enquiry').map(p=>p.countryCode));
   mapEl.innerHTML='';
   let auFound=false;
   state.mapFeatures.forEach(f=>{
@@ -523,7 +523,7 @@ function renderMapPaths(mapEl) {
 }
 
 function renderMapColors() {
-  const activeCodes=new Set(state.projects.filter(p=>p.status!=='Archived').map(p=>p.countryCode));
+  const activeCodes=new Set(state.projects.filter(p=>p.status!=='Archived'&&p.status!=='Enquiry').map(p=>p.countryCode));
   document.querySelectorAll('.country-path').forEach(path=>{
     const iso=path.getAttribute('data-iso');
     path.classList.toggle('has-projects',activeCodes.has(iso));
@@ -538,7 +538,7 @@ function attachMapEvents() {
     const iso=path.getAttribute('data-iso');
     const name=path.getAttribute('data-name');
     path.addEventListener('mouseenter',e=>{
-      const projs=state.projects.filter(p=>p.countryCode===iso&&p.status!=='Archived');
+      const projs=state.projects.filter(p=>p.countryCode===iso&&p.status!=='Archived'&&p.status!=='Enquiry');
       if(!projs.length)return;
       tooltip.innerHTML=`<strong>${name}</strong><br>${projs.map(p=>'· '+p.projectName).join('<br>')}`;
       tooltip.style.display='block';
@@ -553,13 +553,13 @@ function attachMapEvents() {
       renderMapColors();renderCountryProjects();
     });
     path.addEventListener('touchstart',e=>{
-      const hasProj=state.projects.some(p=>p.countryCode===iso&&p.status!=='Archived');
+      const hasProj=state.projects.some(p=>p.countryCode===iso&&p.status!=='Archived'&&p.status!=='Enquiry');
       if(!hasProj)return;
       e.preventDefault();
       state.selectedCountry=state.selectedCountry===iso?null:iso;
       renderMapColors();renderCountryProjects();
       if(state.selectedCountry){
-        const projs=state.projects.filter(p=>p.countryCode===iso&&p.status!=='Archived');
+        const projs=state.projects.filter(p=>p.countryCode===iso&&p.status!=='Archived'&&p.status!=='Enquiry');
         tooltip.innerHTML=`<strong>${name}</strong><br>${projs.map(p=>'· '+p.projectName).join('<br>')}`;
         const r=path.closest('.map-wrap').getBoundingClientRect();
         const t=e.touches[0];
@@ -588,7 +588,7 @@ function renderCountryProjects() {
   if(!state.selectedCountry){container.innerHTML='<div class="empty" style="padding:16px 0 0;">Tap a highlighted country to see its projects</div>';return;}
   const name=countryName(state.selectedCountry);
   const projs=state.projects
-    .filter(p=>p.countryCode===state.selectedCountry&&p.status!=='Archived')
+    .filter(p=>p.countryCode===state.selectedCountry&&p.status!=='Archived'&&p.status!=='Enquiry')
     .sort((a,b)=>{const da=parseOrderDate(a.date),db=parseOrderDate(b.date);if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;return da-db;});
   if(!projs.length){container.innerHTML=`<div class="empty" style="padding:16px 0 0;">No active projects in ${name}</div>`;return;}
   let html=`<div class="section-title">${name} — ${projs.length} project${projs.length!==1?'s':''}</div>`;
@@ -677,10 +677,33 @@ function renderApp(){
 }
 
 function renderProjectsTab(){
-  const active=state.projects.filter(p=>p.status!=='Archived');
+  const enquiries=state.projects.filter(p=>p.status==='Enquiry');
+  const active=state.projects.filter(p=>p.status!=='Archived'&&p.status!=='Enquiry');
   const countries=new Set(active.map(p=>p.countryCode));
+  let enquiryHtml='';
+  if(enquiries.length>0){
+    enquiryHtml=`<div class="section-title" style="margin-top:4px;">New Enquiries</div>`;
+    enquiries.forEach(p=>{
+      enquiryHtml+=`<div class="project-card" style="border-left-color:var(--grey);">
+        <div class="project-card-top">
+          <div class="project-name">${p.projectName}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="project-date">${fmtDate(p.date)}</div>
+            <button onclick="openEditProject('${p.projectId}')" style="background:none;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;padding:2px 8px;color:var(--text-muted);border-radius:4px;">Edit</button>
+          </div>
+        </div>
+        <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
+        ${p.description?`<div class="project-desc">${p.description}</div>`:''}
+        ${p.ActionPoints?`<div class="project-desc" style="margin-top:6px;padding:8px 10px;background:#F0F9FF;border-radius:8px;border-left:3px solid var(--primary);"><span style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:2px;">Action Points</span>${p.ActionPoints}</div>`:''}
+        <div class="project-footer">
+          <span class="proj-status Enquiry" style="background:var(--grey);">Enquiry · ${countryName(p.countryCode)}</span>
+        </div>
+      </div>`;
+    });
+  }
   return`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+    ${enquiryHtml}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;${enquiries.length>0?'margin-top:16px;':''}">
       <div>
         <div style="font-size:18px;font-weight:800;color:var(--text);">Projects Map</div>
         <div class="map-stats">${active.length} active project${active.length!==1?'s':''} · ${countries.size} countr${countries.size!==1?'ies':'y'}</div>
