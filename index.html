@@ -341,7 +341,7 @@ function calculateATSStockImpact(order) {
   return impacts;
 }
 async function applyATSStockDeductions(order,impacts) {
-  const today=new Date().toLocaleDateString('en-GB');
+  const today=new Date().toLocaleDateString('en-GB').replace(/\//g,'-');
   for(const impact of impacts){
     const s=impact.stockItem;
     s.qty=String(impact.newQty);
@@ -371,7 +371,7 @@ async function submitProject() {
   const d=state.addProjectData;
   if(!d.projectName||!d.countryCode||!d.client){showToast('⚠️ Fill in name, client & country');return;}
   const newId=state.projects.length>0?Math.max(...state.projects.map(p=>parseInt(p.projectId)||0))+1:1;
-  const today=new Date().toLocaleDateString('en-GB');
+  const today=new Date().toLocaleDateString('en-GB').replace(/\//g,'-');
   const proj={
     projectId:String(newId),projectName:d.projectName,client:d.client,
     countryCode:d.countryCode,date:d.date||today,description:d.description||'',
@@ -390,7 +390,7 @@ async function updateProject() {
   const d=state.addProjectData;
   const orig=state.editingProject;
   if(!d.projectName||!d.countryCode||!d.client){showToast('⚠️ Fill in name, client & country');return;}
-  const today=new Date().toLocaleDateString('en-GB');
+  const today=new Date().toLocaleDateString('en-GB').replace(/\//g,'-');
   const updated={...orig,...d,lastStatusUpdate:today,type:'update'};
   try {
     await fetch(CONFIG.WEBHOOK_PROJECTS,{method:'POST',body:JSON.stringify(updated)});
@@ -401,6 +401,29 @@ async function updateProject() {
     render();
     setTimeout(()=>{if(state.mapFeatures)renderMapColors();renderCountryProjects();},50);
   } catch(e){showToast('❌ Failed to update project');}
+}
+function openEditProject(projId){
+  const proj=state.projects.find(p=>p.projectId===projId);
+  if(!proj)return;
+  state.editingProject=proj;
+  state.addProjectData={...proj};
+  state.showAddProject=true;
+  render();
+}
+function fmtDate(str){
+  if(!str)return'';
+  // YYYY-MM-DD → DD-MM-YYYY
+  const iso=str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(iso)return`${iso[3]}-${iso[2]}-${iso[1]}`;
+  // DD/MM/YYYY or D/M/YYYY → replace slashes
+  return str.replace(/\//g,'-');
+}
+function toInputDate(str){
+  if(!str)return'';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(str))return str;
+  const m=str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return str;
 }
 function showToast(msg){state.toast=msg;render();setTimeout(()=>{state.toast='';render();},2500);}
 
@@ -557,8 +580,8 @@ function renderCountryProjects() {
       <div class="project-card-top">
         <div class="project-name">${p.projectName}</div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <div class="project-date">${p.date||''}</div>
-          <button class="edit-proj-btn" data-action="edit-project" data-proj-id="${p.projectId}" title="Edit project" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--text-muted);border-radius:4px;">✏️</button>
+          <div class="project-date">${fmtDate(p.date)}</div>
+          <button onclick="openEditProject('${p.projectId}')" style="background:none;border:1px solid var(--border);cursor:pointer;font-size:11px;font-weight:600;padding:2px 8px;color:var(--text-muted);border-radius:4px;">Edit</button>
         </div>
       </div>
       <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
@@ -668,7 +691,7 @@ function renderAddProjectModal(){
   const today=new Date().toISOString().split('T')[0];
   return`<div class="modal-overlay open" id="add-project-overlay">
     <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-title">${editing?'✏️ Edit Project':'➕ Add New Project'}</div>
+      <div class="modal-title">${editing?'Edit Project':'Add New Project'}</div>
       <div class="form-group">
         <label class="form-label">Project Name *</label>
         <input class="form-input" id="proj-name" placeholder="e.g. M8 Highway Barriers" value="${d.projectName||''}">
@@ -685,7 +708,7 @@ function renderAddProjectModal(){
       </div>
       <div class="form-group">
         <label class="form-label">Date</label>
-        <input class="form-input" type="date" id="proj-date" value="${d.date||today}">
+        <input class="form-input" type="date" id="proj-date" value="${toInputDate(d.date)||today}">
       </div>
       <div class="form-group">
         <label class="form-label">Description</label>
@@ -738,7 +761,7 @@ function renderOrderCard(order,defaultStatuses,business,canAdvance){
     <div class="order-card" data-status="${order.status}">
       <div class="order-top">
         <span class="order-po">${order.orderPO||'No PO'} ${flowLabel?`<span style="font-size:10px;font-weight:600;color:${isStd?'var(--green)':'var(--purple)'};background:${isStd?'#F0FDF4':'#F5F3FF'};padding:2px 6px;border-radius:4px;">${flowLabel}</span>`:''}</span>
-        <span class="order-date">${order.dateOrdered}</span>
+        <span class="order-date">${fmtDate(order.dateOrdered)}</span>
       </div>
       <div class="order-customer">${order.customer}</div>
       <div class="order-product">${display}</div>
@@ -922,16 +945,6 @@ function attachEvents(){
   });
   document.querySelectorAll('[data-action="submit-edit-project"]').forEach(el=>{
     el.onclick=async()=>{state.addProjectData=collectProjectForm();await updateProject();};
-  });
-  document.querySelectorAll('[data-action="edit-project"]').forEach(el=>{
-    el.onclick=()=>{
-      const proj=state.projects.find(p=>p.projectId===el.dataset.projId);
-      if(!proj)return;
-      state.editingProject=proj;
-      state.addProjectData={...proj};
-      state.showAddProject=true;
-      render();
-    };
   });
 
   // Init map if on projects tab
