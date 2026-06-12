@@ -165,7 +165,7 @@ let state = {
   atsOrders:[], atseOrders:[],
   atsStock:{standard:[],odd:[]}, atseStock:[],
   projects:[], selectedCountry:null,
-  mapFeatures:null, showAddProject:false, addProjectData:{},
+  mapFeatures:null, showAddProject:false, addProjectData:{}, editingProject:null,
   loading:false, editingStock:null, addingOddStock:false,
   showAllArchived:false, modal:null, toast:''
 };
@@ -386,6 +386,22 @@ async function submitProject() {
     setTimeout(()=>{if(state.mapFeatures)renderMapColors();renderCountryProjects();},50);
   } catch(e){showToast('❌ Failed to save project');}
 }
+async function updateProject() {
+  const d=state.addProjectData;
+  const orig=state.editingProject;
+  if(!d.projectName||!d.countryCode||!d.client){showToast('⚠️ Fill in name, client & country');return;}
+  const today=new Date().toLocaleDateString('en-GB');
+  const updated={...orig,...d,lastStatusUpdate:today,type:'update'};
+  try {
+    await fetch(CONFIG.WEBHOOK_PROJECTS,{method:'POST',body:JSON.stringify(updated)});
+    const idx=state.projects.findIndex(p=>p.projectId===orig.projectId);
+    if(idx>=0)state.projects[idx]={...orig,...d,lastStatusUpdate:today};
+    state.editingProject=null;state.addProjectData={};state.showAddProject=false;
+    showToast(`✓ ${updated.projectName} updated`);
+    render();
+    setTimeout(()=>{if(state.mapFeatures)renderMapColors();renderCountryProjects();},50);
+  } catch(e){showToast('❌ Failed to update project');}
+}
 function showToast(msg){state.toast=msg;render();setTimeout(()=>{state.toast='';render();},2500);}
 
 async function loadData() {
@@ -540,7 +556,10 @@ function renderCountryProjects() {
     html+=`<div class="project-card">
       <div class="project-card-top">
         <div class="project-name">${p.projectName}</div>
-        <div class="project-date">${p.date||''}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="project-date">${p.date||''}</div>
+          <button class="edit-proj-btn" data-action="edit-project" data-proj-id="${p.projectId}" title="Edit project" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;color:var(--text-muted);border-radius:4px;">✏️</button>
+        </div>
       </div>
       <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
       ${p.description?`<div class="project-desc">${p.description}</div>`:''}
@@ -609,7 +628,7 @@ function renderApp(){
       <button class="tab-btn ${state.activeTab==='atse-orders'?'active':''}" data-tab="atse-orders">ATSE Orders</button>
       <button class="tab-btn ${state.activeTab==='atse-stock'?'active':''}" data-tab="atse-stock">ATSE Stock</button>
       <button class="tab-btn ${state.activeTab==='ats-orders'?'active':''}" data-tab="ats-orders">ATS Orders</button>
-      <button class="tab-btn ${state.activeTab==='ats-stock'?'active':''}" data-tab="ats-stock">ATS Stock${atsAlert?'<span class="tab-alert-dot"></span>':''}</button>
+      <button class="tab-btn ${state.activeTab==='ats-stock'?'active':''}" data-tab="ats-stock">ATS Stock</button>
     </div>
     <div class="content">${content}${state.activeTab!=='projects'?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
     ${addProjModal}${modal}${toast}`;
@@ -642,13 +661,14 @@ function renderProjectsTab(){
 }
 
 function renderAddProjectModal(){
+  const editing=!!state.editingProject;
   const d=state.addProjectData||{};
   const opts=Object.entries(ISO_NAMES).sort((a,b)=>a[1].localeCompare(b[1]))
     .map(([c,n])=>`<option value="${c}" ${d.countryCode===c?'selected':''}>${n}</option>`).join('');
   const today=new Date().toISOString().split('T')[0];
   return`<div class="modal-overlay open" id="add-project-overlay">
     <div class="modal" onclick="event.stopPropagation()">
-      <div class="modal-title">➕ Add New Project</div>
+      <div class="modal-title">${editing?'✏️ Edit Project':'➕ Add New Project'}</div>
       <div class="form-group">
         <label class="form-label">Project Name *</label>
         <input class="form-input" id="proj-name" placeholder="e.g. M8 Highway Barriers" value="${d.projectName||''}">
@@ -678,12 +698,12 @@ function renderAddProjectModal(){
       <div class="form-group">
         <label class="form-label">Status</label>
         <select class="form-input" id="proj-status">
-          ${CONFIG.PROJECT_STATUSES.filter(s=>s!=='Archived').map(s=>`<option value="${s}" ${(d.status||'Enquiry')===s?'selected':''}>${s}</option>`).join('')}
+          ${CONFIG.PROJECT_STATUSES.map(s=>`<option value="${s}" ${(d.status||'Enquiry')===s?'selected':''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="modal-actions">
         <button class="modal-cancel" data-action="close-add-project">Cancel</button>
-        <button class="modal-confirm" data-action="submit-project">Save Project</button>
+        <button class="modal-confirm" data-action="${editing?'submit-edit-project':'submit-project'}">${editing?'Update Project':'Save Project'}</button>
       </div>
     </div>
   </div>`;
@@ -886,20 +906,31 @@ function attachEvents(){
   });
 
   // Projects
-  document.querySelectorAll('[data-action="open-add-project"]').forEach(el=>{el.onclick=()=>{state.showAddProject=true;state.addProjectData={};render();};});
-  document.querySelectorAll('[data-action="close-add-project"]').forEach(el=>{el.onclick=()=>{state.showAddProject=false;render();};});
+  document.querySelectorAll('[data-action="open-add-project"]').forEach(el=>{el.onclick=()=>{state.showAddProject=true;state.editingProject=null;state.addProjectData={};render();};});
+  document.querySelectorAll('[data-action="close-add-project"]').forEach(el=>{el.onclick=()=>{state.showAddProject=false;state.editingProject=null;render();};});
+  const collectProjectForm=()=>({
+    projectName:(document.getElementById('proj-name')?.value||'').trim(),
+    client:(document.getElementById('proj-client')?.value||'').trim(),
+    countryCode:document.getElementById('proj-country')?.value||'',
+    date:document.getElementById('proj-date')?.value||'',
+    description:(document.getElementById('proj-desc')?.value||'').trim(),
+    contact:(document.getElementById('proj-contact')?.value||'').trim(),
+    status:document.getElementById('proj-status')?.value||'Enquiry'
+  });
   document.querySelectorAll('[data-action="submit-project"]').forEach(el=>{
-    el.onclick=async()=>{
-      state.addProjectData={
-        projectName:(document.getElementById('proj-name')?.value||'').trim(),
-        client:(document.getElementById('proj-client')?.value||'').trim(),
-        countryCode:document.getElementById('proj-country')?.value||'',
-        date:document.getElementById('proj-date')?.value||'',
-        description:(document.getElementById('proj-desc')?.value||'').trim(),
-        contact:(document.getElementById('proj-contact')?.value||'').trim(),
-        status:document.getElementById('proj-status')?.value||'Enquiry'
-      };
-      await submitProject();
+    el.onclick=async()=>{state.addProjectData=collectProjectForm();await submitProject();};
+  });
+  document.querySelectorAll('[data-action="submit-edit-project"]').forEach(el=>{
+    el.onclick=async()=>{state.addProjectData=collectProjectForm();await updateProject();};
+  });
+  document.querySelectorAll('[data-action="edit-project"]').forEach(el=>{
+    el.onclick=()=>{
+      const proj=state.projects.find(p=>p.projectId===el.dataset.projId);
+      if(!proj)return;
+      state.editingProject=proj;
+      state.addProjectData={...proj};
+      state.showAddProject=true;
+      render();
     };
   });
 
