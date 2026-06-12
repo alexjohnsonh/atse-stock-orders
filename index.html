@@ -282,7 +282,8 @@ async function loadProjects() {
     return rows.map(r=>({
       projectId:r[0]||'',projectName:r[1]||'',countryCode:(r[2]||'').toUpperCase(),
       date:r[3]||'',client:r[4]||'',description:r[5]||'',
-      status:r[6]||'Enquiry',lastStatusUpdate:r[7]||'',contact:r[8]||''
+      status:r[6]||'Enquiry',lastStatusUpdate:r[7]||'',contact:r[8]||'',
+      ActionPoints:r[9]||''
     })).filter(p=>p.projectName);
   } catch(e){ return []; }
 }
@@ -378,7 +379,8 @@ async function submitProject() {
   const proj={
     projectId:String(newId),projectName:d.projectName,client:d.client,
     countryCode:d.countryCode,date:d.date||today,description:d.description||'',
-    status:d.status||'Enquiry',lastStatusUpdate:today,contact:d.contact||''
+    status:d.status||'Enquiry',lastStatusUpdate:today,contact:d.contact||'',
+    ActionPoints:d.ActionPoints||''
   };
   try {
     await fetch(CONFIG.WEBHOOK_PROJECTS,{method:'POST',body:JSON.stringify(proj)});
@@ -602,6 +604,7 @@ function renderCountryProjects() {
       </div>
       <div class="project-client">👤 ${p.client}${p.contact?` · <a href="mailto:${p.contact}" style="color:var(--primary);text-decoration:none;">${p.contact}</a>`:''}</div>
       ${p.description?`<div class="project-desc">${p.description}</div>`:''}
+      ${p.ActionPoints?`<div class="project-desc" style="margin-top:6px;padding:8px 10px;background:#F0F9FF;border-radius:8px;border-left:3px solid var(--primary);"><span style="font-size:10px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:2px;">Action Points</span>${p.ActionPoints}</div>`:''}
       <div class="project-footer">
         <span class="proj-status ${p.status}" style="background:${statusColor}">${p.status}</span>
       </div>
@@ -733,6 +736,10 @@ function renderAddProjectModal(){
       <div class="form-group">
         <label class="form-label">Contact Email</label>
         <input class="form-input" type="email" id="proj-contact" placeholder="contact@example.com" value="${d.contact||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Action Points</label>
+        <textarea class="form-input" id="proj-action-points" placeholder="Next steps, follow-ups…" style="min-height:80px;">${d.ActionPoints||''}</textarea>
       </div>
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -954,6 +961,7 @@ function attachEvents(){
     date:document.getElementById('proj-date')?.value||'',
     description:(document.getElementById('proj-desc')?.value||'').trim(),
     contact:(document.getElementById('proj-contact')?.value||'').trim(),
+    ActionPoints:(document.getElementById('proj-action-points')?.value||'').trim(),
     status:document.getElementById('proj-status')?.value||'Enquiry'
   });
   document.querySelectorAll('[data-action="submit-project"]').forEach(el=>{
