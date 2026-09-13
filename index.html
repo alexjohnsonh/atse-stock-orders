@@ -817,7 +817,7 @@ function renderOrderCard(order,defaultStatuses,business,canAdvance){
       <div class="order-product">${display}</div>
       <div class="order-bottom">
         <span style="font-size:13px;font-weight:600;color:${order.status==='Order Confirmed'?'var(--blue)':order.status==='Being Made'?'var(--amber)':order.status==='At Galvanisers'?'var(--purple)':order.status==='Being Packed'?'var(--green)':'var(--grey)'};">${order.status}</span>
-        ${canAdvance&&nextStatus?`<span class="status-badge clickable" data-status="${nextStatus}" data-action="advance-status" data-inv="${order.invNo}" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}">${nextStatus}</span>`:''}
+        ${canAdvance&&nextStatus?`<span class="status-badge clickable" data-status="${nextStatus}" data-action="advance-status" data-inv="${order.invNo}" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}" data-customer="${order.customer}" data-products="${order.products}" data-qty="${order.qty}" data-date="${order.dateOrdered}">${nextStatus}</span>`:''}
       </div>
     </div>`;
 }
@@ -921,8 +921,26 @@ function attachEvents(){
   document.querySelectorAll('[data-action="toggle-archived"]').forEach(el=>{el.onclick=()=>{state.showAllArchived=!state.showAllArchived;render();};});
 
   document.querySelectorAll('[data-action="advance-status"]').forEach(el=>{
-    el.onclick=()=>{
-      const inv=el.dataset.inv,po=el.dataset.po,next=el.dataset.next,biz=el.dataset.biz;
+    el.onclick=async()=>{
+      const po=el.dataset.po,next=el.dataset.next,biz=el.dataset.biz;
+      let inv=el.dataset.inv;
+      const tab=biz==='Advanced Traffic Supplies'?CONFIG.ATS_ORDERS_TAB:CONFIG.ATSE_ORDERS_TAB;
+
+      if(!inv){
+        showToast('⏳ Checking for invoice number…');
+        const fresh=await loadOrders(tab);
+        const rematch=fresh.find(o=>o.orderPO===po&&o.customer===el.dataset.customer&&o.products===el.dataset.products&&o.qty===el.dataset.qty&&o.dateOrdered===el.dataset.date);
+        if(rematch&&rematch.invNo){
+          if(biz==='Advanced Traffic Supplies')state.atsOrders=fresh;else state.atseOrders=fresh;
+          inv=rematch.invNo;
+        }
+        if(!inv){
+          showToast('⚠️ No invoice number on this order yet — check Xero/the sheet, then try again');
+          render();
+          return;
+        }
+      }
+
       const orders=biz==='Advanced Traffic Supplies'?state.atsOrders:state.atseOrders;
       const order=orders.find(o=>o.invNo===inv);
       let warningHtml='',impacts=[];
