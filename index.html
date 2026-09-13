@@ -363,8 +363,8 @@ async function applyATSStockDeductions(order,impacts) {
 }
 
 // ── Webhooks ──
-async function updateStatus(orderPO,newStatus,business) {
-  try{await fetch(CONFIG.WEBHOOK_STATUS,{method:'POST',body:JSON.stringify({orderPO,newStatus,business,timestamp:new Date().toISOString()})});return true;}
+async function updateStatus(invNo,orderPO,newStatus,business) {
+  try{await fetch(CONFIG.WEBHOOK_STATUS,{method:'POST',body:JSON.stringify({invNo,orderPO,newStatus,business,timestamp:new Date().toISOString()})});return true;}
   catch(e){showToast('❌ Failed to update status');return false;}
 }
 async function updateStock(productCode,tab,data) {
@@ -817,7 +817,7 @@ function renderOrderCard(order,defaultStatuses,business,canAdvance){
       <div class="order-product">${display}</div>
       <div class="order-bottom">
         <span style="font-size:13px;font-weight:600;color:${order.status==='Order Confirmed'?'var(--blue)':order.status==='Being Made'?'var(--amber)':order.status==='At Galvanisers'?'var(--purple)':order.status==='Being Packed'?'var(--green)':'var(--grey)'};">${order.status}</span>
-        ${canAdvance&&nextStatus?`<span class="status-badge clickable" data-status="${nextStatus}" data-action="advance-status" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}">${nextStatus}</span>`:''}
+        ${canAdvance&&nextStatus?`<span class="status-badge clickable" data-status="${nextStatus}" data-action="advance-status" data-inv="${order.invNo}" data-po="${order.orderPO}" data-next="${nextStatus}" data-biz="${business}">${nextStatus}</span>`:''}
       </div>
     </div>`;
 }
@@ -922,9 +922,9 @@ function attachEvents(){
 
   document.querySelectorAll('[data-action="advance-status"]').forEach(el=>{
     el.onclick=()=>{
-      const po=el.dataset.po,next=el.dataset.next,biz=el.dataset.biz;
+      const inv=el.dataset.inv,po=el.dataset.po,next=el.dataset.next,biz=el.dataset.biz;
       const orders=biz==='Advanced Traffic Supplies'?state.atsOrders:state.atseOrders;
-      const order=orders.find(o=>o.orderPO===po);
+      const order=orders.find(o=>o.invNo===inv);
       let warningHtml='',impacts=[];
       if(next==='Order Confirmed'&&order&&biz==='Advanced Traffic Supplies'){
         impacts=calculateATSStockImpact(order);
@@ -936,8 +936,8 @@ function attachEvents(){
         warning:warningHtml||null,
         onConfirm:async()=>{
           if(next==='Order Confirmed'&&impacts.length>0)await applyATSStockDeductions(order,impacts);
-          const success=await updateStatus(po,next,biz);
-          const o=orders.find(o=>o.orderPO===po);
+          const success=await updateStatus(inv,po,next,biz);
+          const o=orders.find(o=>o.invNo===inv);
           if(o){o.status=next;o.lastUpdated=new Date().toISOString();}
           state.modal=null;
           showToast(success?`✓ ${po} → ${next}`:'✓ Updated locally');render();
