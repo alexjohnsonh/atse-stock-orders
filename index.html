@@ -49,6 +49,10 @@ input,select,textarea { font-family:inherit; }
 .tab-btn { flex:1; min-width:0; padding:10px 2px; font-size:10.5px; font-weight:600; color:var(--text-muted); background:none; border-bottom:3px solid transparent; transition:all 0.15s; position:relative; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
 .tab-alert-dot { position:absolute; top:8px; right:calc(50% - 26px); width:8px; height:8px; background:var(--red); border-radius:50%; }
+.form-switch { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.form-switch-btn { flex:1; min-width:120px; padding:10px 8px; border-radius:10px; border:1px solid var(--border); background:white; color:var(--text-muted); font-size:12px; font-weight:600; }
+.form-switch-btn.active { background:var(--primary); border-color:var(--primary); color:white; }
+.form-frame { width:100%; height:calc(100vh - 230px); min-height:500px; border:1px solid var(--border); border-radius:12px; background:white; }
 .content { padding:16px; max-width:600px; margin:0 auto; padding-bottom:100px; }
 .section-title { font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; margin:20px 0 10px; }
 .section-title:first-child { margin-top:4px; }
@@ -159,12 +163,17 @@ const CONFIG = {
   ATSE_STATUSES:['Order Created','Order Confirmed','Being Made','Being Packed','Shipped'],
   PROJECT_STATUSES:['Enquiry','Quoted','Confirmed','Archived'],
   USERS:[{name:'Alex',pin:'1111',role:'admin'},{name:'Kelly',pin:'2222',role:'admin'}],
-  THEME_COLOR:'#164E63'
+  THEME_COLOR:'#164E63',
+  FORMS:[
+    {key:'order',label:'Order Form',url:'https://form.jotform.com/260485712367058'},
+    {key:'atse-nzpost',label:'ATSE NZ Post Tracking',url:'https://form.jotform.com/260537127106047'},
+    {key:'ats-nzpost',label:'ATS NZ Post Tracking',url:'https://form.jotform.com/262806084514861'}
+  ]
 };
 
 let state = {
   screen:'login', selectedUser:null, currentUser:null,
-  pin:'', pinError:'', activeTab:'projects',
+  pin:'', pinError:'', activeTab:'projects', activeForm:'order',
   atsOrders:[], atseOrders:[],
   atsStock:{standard:[],odd:[]}, atseStock:[],
   projects:[], selectedCountry:null,
@@ -657,6 +666,7 @@ function renderApp(){
   else if(state.activeTab==='atse-stock')content=renderATSEStockView();
   else if(state.activeTab==='ats-orders')content=renderOrdersView(state.atsOrders,CONFIG.ATS_SPECIAL_STATUSES,'Advanced Traffic Supplies');
   else if(state.activeTab==='ats-stock')content=renderATSStockView();
+  else if(state.activeTab==='forms')content=renderFormsTab();
 
   const addProjModal=state.showAddProject?renderAddProjectModal():'';
   const modal=state.modal?renderModal():'';
@@ -673,9 +683,16 @@ function renderApp(){
       <button class="tab-btn ${state.activeTab==='atse-stock'?'active':''}" data-tab="atse-stock">ATSE Stock</button>
       <button class="tab-btn ${state.activeTab==='ats-orders'?'active':''}" data-tab="ats-orders">ATS Orders</button>
       <button class="tab-btn ${state.activeTab==='ats-stock'?'active':''}" data-tab="ats-stock">ATS Stock</button>
+      <button class="tab-btn ${state.activeTab==='forms'?'active':''}" data-tab="forms">Forms</button>
     </div>
-    <div class="content">${content}${state.activeTab!=='projects'?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
+    <div class="content">${content}${state.activeTab!=='projects'&&state.activeTab!=='forms'?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
     ${addProjModal}${modal}${toast}`;
+}
+
+function renderFormsTab(){
+  const form=CONFIG.FORMS.find(f=>f.key===state.activeForm)||CONFIG.FORMS[0];
+  const switcher=CONFIG.FORMS.map(f=>`<button class="form-switch-btn ${f.key===form.key?'active':''}" data-form="${f.key}">${f.label}</button>`).join('');
+  return`<div class="form-switch">${switcher}</div><iframe class="form-frame" src="${form.url}" title="${form.label}" allow="geolocation; microphone; camera"></iframe>`;
 }
 
 function renderEnquiriesSection(){
@@ -916,6 +933,7 @@ function attachEvents(){
   });
   document.querySelectorAll('[data-action="back-login"]').forEach(el=>{el.onclick=()=>{state.screen='login';state.pin='';state.pinError='';render();};});
   document.querySelectorAll('[data-action="logout"]').forEach(el=>{el.onclick=()=>{state.screen='login';state.currentUser=null;state.pin='';try{localStorage.removeItem('atse-user');}catch(e){}render();};});
+  document.querySelectorAll('[data-form]').forEach(btn=>{btn.onclick=()=>{state.activeForm=btn.dataset.form;render();};});
   document.querySelectorAll('.tab-btn').forEach(btn=>{btn.onclick=()=>{state.activeTab=btn.dataset.tab;state.editingStock=null;state.showAllArchived=false;render();};});
   document.querySelectorAll('[data-action="refresh"]').forEach(el=>{el.onclick=()=>loadData();});
   document.querySelectorAll('[data-action="toggle-archived"]').forEach(el=>{el.onclick=()=>{state.showAllArchived=!state.showAllArchived;render();};});
