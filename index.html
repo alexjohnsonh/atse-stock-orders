@@ -49,6 +49,18 @@ input,select,textarea { font-family:inherit; }
 .tab-btn { flex:1; min-width:0; padding:10px 2px; font-size:10.5px; font-weight:600; color:var(--text-muted); background:none; border-bottom:3px solid transparent; transition:all 0.15s; position:relative; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tab-btn.active { color:var(--primary); border-bottom-color:var(--primary); }
 .tab-alert-dot { position:absolute; top:8px; right:calc(50% - 26px); width:8px; height:8px; background:var(--red); border-radius:50%; }
+.form-switch { display:flex; gap:8px; margin-bottom:12px; }
+.form-switch-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 8px; border-radius:12px; border:2px solid var(--border); background:white; color:var(--text-muted); font-size:12px; font-weight:600; }
+.form-switch-btn img { height:34px; max-width:100%; object-fit:contain; }
+.form-switch-btn.active { border-color:var(--primary); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.12); }
+.form-switch-btn:not(.active) img { opacity:0.45; }
+.form-banner { display:flex; align-items:center; justify-content:center; gap:16px; background:white; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; }
+.form-banner img { height:56px; max-width:45%; object-fit:contain; }
+.nz-card { background:white; border:1px solid var(--border); border-radius:12px; padding:16px; }
+.nz-title { font-size:15px; font-weight:800; margin-bottom:2px; }
+.nz-sub { font-size:12px; color:var(--text-muted); margin-bottom:14px; }
+.nz-submit { width:100%; padding:13px; border-radius:10px; background:var(--primary); color:white; font-size:14px; font-weight:700; }
+.nz-submit:disabled { opacity:0.6; }
 .content { padding:16px; max-width:600px; margin:0 auto; padding-bottom:100px; }
 .section-title { font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; margin:20px 0 10px; }
 .section-title:first-child { margin-top:4px; }
@@ -159,12 +171,17 @@ const CONFIG = {
   ATSE_STATUSES:['Order Created','Order Confirmed','Being Made','Being Packed','Shipped'],
   PROJECT_STATUSES:['Enquiry','Quoted','Confirmed','Archived'],
   USERS:[{name:'Alex',pin:'1111',role:'admin'},{name:'Kelly',pin:'2222',role:'admin'}],
-  THEME_COLOR:'#164E63'
+  THEME_COLOR:'#164E63',
+  WEBHOOK_NZPOST:'https://hooks.zapier.com/hooks/catch/24033816/ucn1ehk/',
+  NZPOST:{
+    atse:{label:'ATS Environmental',business:'ATS Environmental',logo:'logo-atse.png'},
+    ats:{label:'Advanced Traffic Supplies',business:'Advanced Traffic Supplies',logo:'logo-ats.png'}
+  }
 };
 
 let state = {
   screen:'login', selectedUser:null, currentUser:null,
-  pin:'', pinError:'', activeTab:'projects',
+  pin:'', pinError:'', activeTab:'projects', nzCompany:'atse', nzForm:{firstName:'',email:'',po:'',tracking:''}, nzSending:false,
   atsOrders:[], atseOrders:[],
   atsStock:{standard:[],odd:[]}, atseStock:[],
   projects:[], selectedCountry:null,
@@ -657,6 +674,7 @@ function renderApp(){
   else if(state.activeTab==='atse-stock')content=renderATSEStockView();
   else if(state.activeTab==='ats-orders')content=renderOrdersView(state.atsOrders,CONFIG.ATS_SPECIAL_STATUSES,'Advanced Traffic Supplies');
   else if(state.activeTab==='ats-stock')content=renderATSStockView();
+  else if(state.activeTab==='nzpost')content=renderNZPostTab();
 
   const addProjModal=state.showAddProject?renderAddProjectModal():'';
   const modal=state.modal?renderModal():'';
@@ -669,13 +687,52 @@ function renderApp(){
     </div>
     <div class="tab-bar">
       <button class="tab-btn ${state.activeTab==='projects'?'active':''}" data-tab="projects">ATSE Projects</button>
+      <button class="tab-btn ${state.activeTab==='nzpost'?'active':''}" data-tab="nzpost">NZ Post</button>
       <button class="tab-btn ${state.activeTab==='atse-orders'?'active':''}" data-tab="atse-orders">ATSE Orders</button>
       <button class="tab-btn ${state.activeTab==='atse-stock'?'active':''}" data-tab="atse-stock">ATSE Stock</button>
       <button class="tab-btn ${state.activeTab==='ats-orders'?'active':''}" data-tab="ats-orders">ATS Orders</button>
       <button class="tab-btn ${state.activeTab==='ats-stock'?'active':''}" data-tab="ats-stock">ATS Stock</button>
     </div>
-    <div class="content">${content}${state.activeTab!=='projects'?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
+    <div class="content">${content}${!['projects','nzpost'].includes(state.activeTab)?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
     ${addProjModal}${modal}${toast}`;
+}
+
+function escAttr(v){return String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+function renderNZPostTab(){
+  const co=CONFIG.NZPOST[state.nzCompany]||CONFIG.NZPOST.atse;
+  const f=state.nzForm;
+  const switcher=Object.entries(CONFIG.NZPOST).map(([k,c])=>`<button class="form-switch-btn ${k===state.nzCompany?'active':''}" data-nzco="${k}"><img src="${c.logo}" alt="">${c.label}</button>`).join('');
+  return`<div class="form-switch">${switcher}</div>
+    <div class="form-banner"><img src="${co.logo}" alt="${co.label}"></div>
+    <div class="nz-card">
+      <div class="nz-title">NZ Post - Customer Order Tracking</div>
+      <div class="nz-sub">Sending as <strong>${co.label}</strong></div>
+      <div class="form-group"><label class="form-label">Customer First Name *</label><input class="form-input" data-nzfield="firstName" autocomplete="off" value="${escAttr(f.firstName)}"></div>
+      <div class="form-group"><label class="form-label">Customer Email Address *</label><input class="form-input" type="email" inputmode="email" data-nzfield="email" autocomplete="off" placeholder="example@example.com" value="${escAttr(f.email)}"></div>
+      <div class="form-group"><label class="form-label">PO Number *</label><input class="form-input" data-nzfield="po" autocomplete="off" value="${escAttr(f.po)}"></div>
+      <div class="form-group"><label class="form-label">Tracking Number *</label><input class="form-input" data-nzfield="tracking" autocomplete="off" value="${escAttr(f.tracking)}"></div>
+      <button class="nz-submit" data-action="submit-nzpost" ${state.nzSending?'disabled':''}>${state.nzSending?'Sending…':'Submit'}</button>
+    </div>`;
+}
+
+async function submitNZPost(){
+  if(state.nzSending)return;
+  const co=CONFIG.NZPOST[state.nzCompany]||CONFIG.NZPOST.atse;
+  const f={firstName:state.nzForm.firstName.trim(),email:state.nzForm.email.trim(),po:state.nzForm.po.trim(),tracking:state.nzForm.tracking.trim()};
+  if(!f.firstName||!f.email||!f.po||!f.tracking){showToast('⚠️ Please fill in all fields');return;}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)){showToast('⚠️ Enter a valid email address');return;}
+  state.nzSending=true;render();
+  try{
+    const res=await fetch(CONFIG.WEBHOOK_NZPOST,{method:'POST',body:JSON.stringify({company:co.business,firstName:f.firstName,email:f.email,poNumber:f.po,trackingNumber:f.tracking,submittedBy:state.currentUser?state.currentUser.name:'',timestamp:new Date().toISOString()})});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    state.nzForm={firstName:'',email:'',po:'',tracking:''};
+    state.nzSending=false;
+    showToast(`✓ Tracking sent for ${co.label}`);
+  }catch(e){
+    state.nzSending=false;
+    showToast('❌ Failed to send — nothing was submitted, try again');
+  }
 }
 
 function renderEnquiriesSection(){
@@ -916,6 +973,9 @@ function attachEvents(){
   });
   document.querySelectorAll('[data-action="back-login"]').forEach(el=>{el.onclick=()=>{state.screen='login';state.pin='';state.pinError='';render();};});
   document.querySelectorAll('[data-action="logout"]').forEach(el=>{el.onclick=()=>{state.screen='login';state.currentUser=null;state.pin='';try{localStorage.removeItem('atse-user');}catch(e){}render();};});
+  document.querySelectorAll('[data-nzco]').forEach(btn=>{btn.onclick=()=>{state.nzCompany=btn.dataset.nzco;render();};});
+  document.querySelectorAll('[data-nzfield]').forEach(inp=>{inp.oninput=()=>{state.nzForm[inp.dataset.nzfield]=inp.value;};});
+  document.querySelectorAll('[data-action="submit-nzpost"]').forEach(el=>{el.onclick=submitNZPost;});
   document.querySelectorAll('.tab-btn').forEach(btn=>{btn.onclick=()=>{state.activeTab=btn.dataset.tab;state.editingStock=null;state.showAllArchived=false;render();};});
   document.querySelectorAll('[data-action="refresh"]').forEach(el=>{el.onclick=()=>loadData();});
   document.querySelectorAll('[data-action="toggle-archived"]').forEach(el=>{el.onclick=()=>{state.showAllArchived=!state.showAllArchived;render();};});
