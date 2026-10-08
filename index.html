@@ -61,6 +61,18 @@ input,select,textarea { font-family:inherit; }
 .nz-sub { font-size:12px; color:var(--text-muted); margin-bottom:14px; }
 .nz-submit { width:100%; padding:13px; border-radius:10px; background:var(--primary); color:white; font-size:14px; font-weight:700; }
 .nz-submit:disabled { opacity:0.6; }
+.of-card { background:white; border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; }
+.of-row { display:flex; gap:8px; }
+.of-row > .form-group { flex:1; min-width:0; }
+.prod-row { display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+.prod-row .code { flex:1; min-width:0; }
+.prod-row .qty { width:80px; flex:none; }
+.prod-remove { width:38px; height:40px; flex:none; border-radius:8px; border:1px solid var(--border); background:white; color:var(--red); font-size:16px; }
+.add-prod { padding:8px 12px; border-radius:8px; border:1px dashed var(--primary); color:var(--primary); background:none; font-size:12px; font-weight:700; }
+.addr-results { border:1px solid var(--border); border-radius:8px; margin-top:6px; background:white; overflow:hidden; }
+.addr-item { display:block; width:100%; text-align:left; padding:10px 12px; font-size:13px; border-bottom:1px solid var(--border); background:white; color:var(--text); }
+.addr-item:last-child { border-bottom:0; }
+.addr-hint { font-size:11px; color:var(--text-muted); margin-top:5px; }
 .content { padding:16px; max-width:600px; margin:0 auto; padding-bottom:100px; }
 .section-title { font-size:13px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; margin:20px 0 10px; }
 .section-title:first-child { margin-top:4px; }
@@ -173,7 +185,11 @@ const CONFIG = {
   USERS:[{name:'Alex',pin:'1111',role:'admin'},{name:'Kelly',pin:'2222',role:'admin'}],
   THEME_COLOR:'#164E63',
   WEBHOOK_NZPOST:'https://hooks.zapier.com/hooks/catch/24033816/ucn1ehk/',
-  NZPOST:{
+  WEBHOOK_ORDER:'https://hooks.zapier.com/hooks/catch/24033816/uc9jd07/',
+  ORDER_MAX_PRODUCTS:5, // the order Zap only has Xero modules for 5 products
+  BOLT_OPTIONS:['No Treatment - laser-cut holes only','Tapping only','Supplying Bolts only','Tapping & Supplying Bolts'],
+  BAFFLE_OPTIONS:['No Baffles',"No 45's or Relief Cuts","Half left, Half right 45's with Relief Cuts","45's with Relief Cuts"],
+  COMPANIES:{
     atse:{label:'ATS Environmental',business:'ATS Environmental',logo:'logo-atse.png'},
     ats:{label:'Advanced Traffic Supplies',business:'Advanced Traffic Supplies',logo:'logo-ats.png'}
   }
@@ -181,7 +197,7 @@ const CONFIG = {
 
 let state = {
   screen:'login', selectedUser:null, currentUser:null,
-  pin:'', pinError:'', activeTab:'projects', nzCompany:'atse', nzForm:{firstName:'',email:'',po:'',tracking:''}, nzSending:false,
+  pin:'', pinError:'', activeTab:'projects', nzCompany:'atse', nzForm:{firstName:'',email:'',po:'',tracking:''}, nzSending:false, order:null, orderSending:false,
   atsOrders:[], atseOrders:[],
   atsStock:{standard:[],odd:[]}, atseStock:[],
   projects:[], selectedCountry:null,
@@ -453,7 +469,16 @@ function toInputDate(str){
   if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
   return str;
 }
-function showToast(msg){state.toast=msg;render();setTimeout(()=>{state.toast='';render();},2500);}
+function showToast(msg){
+  state.toast=msg;
+  const formTab=state.screen==='app'&&['order-form','nzpost'].includes(state.activeTab);
+  const paint=()=>{
+    const t=formTab&&document.querySelector('.toast');
+    if(t){t.textContent=state.toast;t.classList.toggle('show',!!state.toast);}else render();
+  };
+  paint();
+  setTimeout(()=>{state.toast='';paint();},2500);
+}
 
 async function loadData() {
   state.loading=true;render();
@@ -674,6 +699,7 @@ function renderApp(){
   else if(state.activeTab==='atse-stock')content=renderATSEStockView();
   else if(state.activeTab==='ats-orders')content=renderOrdersView(state.atsOrders,CONFIG.ATS_SPECIAL_STATUSES,'Advanced Traffic Supplies');
   else if(state.activeTab==='ats-stock')content=renderATSStockView();
+  else if(state.activeTab==='order-form')content=renderOrderTab();
   else if(state.activeTab==='nzpost')content=renderNZPostTab();
 
   const addProjModal=state.showAddProject?renderAddProjectModal():'';
@@ -687,22 +713,23 @@ function renderApp(){
     </div>
     <div class="tab-bar">
       <button class="tab-btn ${state.activeTab==='projects'?'active':''}" data-tab="projects">ATSE Projects</button>
+      <button class="tab-btn ${state.activeTab==='order-form'?'active':''}" data-tab="order-form">New Order</button>
       <button class="tab-btn ${state.activeTab==='atse-orders'?'active':''}" data-tab="atse-orders">ATSE Orders</button>
       <button class="tab-btn ${state.activeTab==='atse-stock'?'active':''}" data-tab="atse-stock">ATSE Stock</button>
       <button class="tab-btn ${state.activeTab==='ats-orders'?'active':''}" data-tab="ats-orders">ATS Orders</button>
       <button class="tab-btn ${state.activeTab==='ats-stock'?'active':''}" data-tab="ats-stock">ATS Stock</button>
       <button class="tab-btn ${state.activeTab==='nzpost'?'active':''}" data-tab="nzpost">NZ Post Tracking</button>
     </div>
-    <div class="content">${content}${!['projects','nzpost'].includes(state.activeTab)?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
+    <div class="content">${content}${!['projects','order-form','nzpost'].includes(state.activeTab)?'<button class="refresh-btn" data-action="refresh">↻ Refresh</button>':''}</div>
     ${addProjModal}${modal}${toast}`;
 }
 
 function escAttr(v){return String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 
 function renderNZPostTab(){
-  const co=CONFIG.NZPOST[state.nzCompany]||CONFIG.NZPOST.atse;
+  const co=CONFIG.COMPANIES[state.nzCompany]||CONFIG.COMPANIES.atse;
   const f=state.nzForm;
-  const switcher=Object.entries(CONFIG.NZPOST).map(([k,c])=>`<button class="form-switch-btn ${k===state.nzCompany?'active':''}" data-nzco="${k}"><img src="${c.logo}" alt="">${c.label}</button>`).join('');
+  const switcher=Object.entries(CONFIG.COMPANIES).map(([k,c])=>`<button class="form-switch-btn ${k===state.nzCompany?'active':''}" data-nzco="${k}"><img src="${c.logo}" alt="">${c.label}</button>`).join('');
   return`<div class="form-switch">${switcher}</div>
     <div class="form-banner"><img src="${co.logo}" alt="${co.label}"></div>
     <div class="nz-card">
@@ -718,7 +745,7 @@ function renderNZPostTab(){
 
 async function submitNZPost(){
   if(state.nzSending)return;
-  const co=CONFIG.NZPOST[state.nzCompany]||CONFIG.NZPOST.atse;
+  const co=CONFIG.COMPANIES[state.nzCompany]||CONFIG.COMPANIES.atse;
   const f={firstName:state.nzForm.firstName.trim(),email:state.nzForm.email.trim(),po:state.nzForm.po.trim(),tracking:state.nzForm.tracking.trim()};
   if(!f.firstName||!f.email||!f.po||!f.tracking){showToast('⚠️ Please fill in all fields');return;}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)){showToast('⚠️ Enter a valid email address');return;}
@@ -727,11 +754,203 @@ async function submitNZPost(){
     const res=await fetch(CONFIG.WEBHOOK_NZPOST,{method:'POST',body:JSON.stringify({company:co.business,firstName:f.firstName,email:f.email,poNumber:f.po,trackingNumber:f.tracking,submittedBy:state.currentUser?state.currentUser.name:'',timestamp:new Date().toISOString()})});
     if(!res.ok)throw new Error('HTTP '+res.status);
     state.nzForm={firstName:'',email:'',po:'',tracking:''};
-    state.nzSending=false;
+    state.nzSending=false;render();
     showToast(`✓ Tracking sent for ${co.label}`);
   }catch(e){
-    state.nzSending=false;
+    state.nzSending=false;render();
     showToast('❌ Failed to send — nothing was submitted, try again');
+  }
+}
+
+function newOrderForm(){
+  return {company:'',ref:'',companyName:'',firstName:'',lastName:'',email:'',phone:'',contact:'',notes:'',bolt:'',baffle:'',street:'',street2:'',city:'',region:'',postal:'',addrQuery:'',products:[{code:'',qty:'1'}]};
+}
+
+function renderOrderTab(){
+  if(!state.order)state.order=newOrderForm();
+  const o=state.order;
+  const co=CONFIG.COMPANIES[o.company];
+  const switcher=Object.entries(CONFIG.COMPANIES).map(([k,c])=>`<button class="form-switch-btn ${k===o.company?'active':''}" data-ofco="${k}"><img src="${c.logo}" alt="">${c.label}</button>`).join('');
+  if(!co)return`<div class="form-switch">${switcher}</div><div class="addr-hint" style="text-align:center;">Choose the company this order is for to start.</div>`;
+
+  const stock=o.company==='ats'?state.atsStock.standard:state.atseStock;
+  const codes=stock.map(s=>`<option value="${escAttr(s.productCode)}">`).join('');
+  const rows=o.products.map((r,i)=>`<div class="prod-row">
+      <input class="form-input code" list="of-codes" data-ocode="${i}" placeholder="Product code" autocomplete="off" autocapitalize="characters" value="${escAttr(r.code)}">
+      <input class="form-input qty" type="number" inputmode="numeric" min="1" max="1000" data-oqty="${i}" value="${escAttr(r.qty)}">
+      ${o.products.length>1?`<button class="prod-remove" data-oremove="${i}" aria-label="Remove product">✕</button>`:''}
+    </div>`).join('');
+  const opts=(list,sel)=>`<option value="">Please select</option>`+list.map(v=>`<option ${v===sel?'selected':''} value="${escAttr(v)}">${escAttr(v)}</option>`).join('');
+  const f=(key,label,extra='')=>`<div class="form-group"><label class="form-label">${label}</label><input class="form-input" data-ofield="${key}" autocomplete="off" ${extra} value="${escAttr(o[key])}"></div>`;
+
+  return`<div class="form-switch">${switcher}</div>
+    <div class="form-banner"><img src="${co.logo}" alt="${co.label}"></div>
+    <div class="of-card">
+      <div class="nz-title">New Order</div>
+      <div class="nz-sub">Creating an order for <strong>${co.label}</strong></div>
+      ${f('ref','Customer Reference (PO) *')}
+      <label class="form-label">Products *</label>
+      <datalist id="of-codes">${codes}</datalist>
+      ${rows}
+      ${o.products.length<CONFIG.ORDER_MAX_PRODUCTS?`<button class="add-prod" data-action="add-product">+ Add another product</button>`:`<div class="addr-hint">Maximum of ${CONFIG.ORDER_MAX_PRODUCTS} products per order.</div>`}
+      <div class="form-group" style="margin-top:14px;">
+        ${o.company==='atse'
+          ?`<label class="form-label">Baffle Treatment? *</label><select class="form-input" data-ofield="baffle">${opts(CONFIG.BAFFLE_OPTIONS,o.baffle)}</select>`
+          :`<label class="form-label">Bolt Down? *</label><select class="form-input" data-ofield="bolt">${opts(CONFIG.BOLT_OPTIONS,o.bolt)}</select>`}
+      </div>
+      ${f('notes','Details / Notes')}
+    </div>
+    <div class="of-card">
+      <div class="nz-title">Customer</div>
+      <div class="nz-sub">Who the order confirmation is sent to</div>
+      ${f('companyName','Company Name *')}
+      <div class="of-row">${f('firstName','First Name')}${f('lastName','Last Name')}</div>
+      ${f('email','Customer Email Address *','type="email" inputmode="email" placeholder="example@example.com"')}
+    </div>
+    <div class="of-card">
+      <div class="nz-title">Delivery</div>
+      <div class="nz-sub">Search for an address, or type it in below</div>
+      <div class="form-group">
+        <label class="form-label">Address Search</label>
+        <input class="form-input" id="addr-search" data-ofield="addrQuery" autocomplete="off" placeholder="Start typing a street address…" value="${escAttr(o.addrQuery)}">
+        <div id="addr-results"></div>
+        <div class="addr-hint">Pick a result to fill the fields below, then check them (add the street number if it's missing).</div>
+      </div>
+      ${f('street','Street Address')}
+      ${f('street2','Street Address Line 2')}
+      <div class="of-row">${f('city','City / Town')}${f('region','Region')}</div>
+      ${f('postal','Postal Code')}
+      ${f('contact','Delivery Contact Person')}
+      ${f('phone','Delivery Phone Number','type="tel" inputmode="tel"')}
+    </div>
+    <button class="nz-submit" data-action="submit-order" ${state.orderSending?'disabled':''}>${state.orderSending?'Sending…':'Submit Order'}</button>`;
+}
+
+let addrSearchSeq=0,addrSearchTimer=null;
+function runAddressSearch(q){
+  const box=document.getElementById('addr-results');
+  if(!box)return;
+  clearTimeout(addrSearchTimer);
+  if(q.trim().length<4){box.innerHTML='';return;}
+  addrSearchTimer=setTimeout(async()=>{
+    const seq=++addrSearchSeq;
+    try{
+      const res=await fetch('https://photon.komoot.io/api/?limit=6&lang=en&bbox=166,-48,179,-34&q='+encodeURIComponent(q.trim()));
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      if(seq!==addrSearchSeq)return;
+      const hits=(data.features||[]).map(x=>x.properties).filter(pr=>pr.countrycode==='NZ'&&(pr.street||pr.name));
+      state.addrHits=hits;
+      const el=document.getElementById('addr-results');
+      if(!el)return;
+      el.innerHTML=hits.length?`<div class="addr-results">${hits.map((pr,i)=>{
+        const line1=[pr.housenumber,pr.street||pr.name].filter(Boolean).join(' ');
+        const rest=[pr.district||pr.suburb,pr.city||pr.town||pr.village||pr.county,pr.postcode].filter(Boolean).join(', ');
+        return`<button class="addr-item" data-addrpick="${i}">${escAttr(line1)}<br><span style="color:var(--text-muted);font-size:12px;">${escAttr(rest)}</span></button>`;
+      }).join('')}</div>`:'<div class="addr-hint">No matches — type the address in the fields below.</div>';
+      el.querySelectorAll('[data-addrpick]').forEach(b=>{b.onclick=()=>pickAddress(parseInt(b.dataset.addrpick));});
+    }catch(e){
+      const el=document.getElementById('addr-results');
+      if(el&&seq===addrSearchSeq)el.innerHTML='<div class="addr-hint">Address search is unavailable — type the address in the fields below.</div>';
+    }
+  },400);
+}
+
+function pickAddress(i){
+  const pr=(state.addrHits||[])[i];if(!pr)return;
+  clearTimeout(addrSearchTimer);addrSearchSeq++;
+  const o=state.order;
+  o.street=[pr.housenumber,pr.street||pr.name].filter(Boolean).join(' ');
+  o.street2=pr.district||pr.suburb||'';
+  o.city=pr.city||pr.town||pr.village||pr.county||'';
+  o.region=pr.state||'';
+  o.postal=pr.postcode||'';
+  o.addrQuery='';
+  render();
+}
+
+function orderProblem(o){
+  if(!CONFIG.COMPANIES[o.company])return'Choose a company';
+  if(!o.ref.trim())return'Customer Reference (PO) is required';
+  const filled=o.products.filter(r=>r.code.trim()||String(r.qty).trim());
+  if(filled.length===0)return'Add at least one product';
+  for(const r of filled){
+    if(!r.code.trim())return'Enter a product code for each product row';
+    const q=Number(r.qty);
+    if(!Number.isInteger(q)||q<1||q>1000)return`Quantity for ${r.code.trim()} must be a whole number from 1 to 1000`;
+  }
+  if(o.company==='atse'&&!o.baffle)return'Choose a Baffle Treatment';
+  if(o.company==='ats'&&!o.bolt)return'Choose a Bolt Down option';
+  if(!o.companyName.trim())return'Company Name is required';
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email.trim()))return'Enter a valid customer email address';
+  return'';
+}
+
+function buildOrderPayload(o){
+  const co=CONFIG.COMPANIES[o.company];
+  const pad=n=>String(n).padStart(2,'0');
+  const d=new Date();
+  const createdAt=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const known=(o.company==='ats'?state.atsStock.standard:state.atseStock).map(x=>x.productCode);
+  const canon=c=>known.find(k=>k.toUpperCase()===c.toUpperCase())||c;
+  const products=o.products.filter(r=>r.code.trim()).map(r=>({'Product Code':canon(r.code.trim()),'Quantity':String(parseInt(r.qty,10))}));
+  const addrLines=[o.street,o.street2,o.city,[o.region,o.postal].filter(x=>x.trim()).join(' ')].map(x=>x.trim()).filter(Boolean);
+  return{
+    created_at:createdAt,
+    submitted_by:state.currentUser?state.currentUser.name:'',
+    answers:{
+      'Select Company':co.business,
+      'Customer Reference':o.ref.trim(),
+      'Product Codes':JSON.stringify(products),
+      'Bolt Down?':o.company==='ats'?o.bolt:'',
+      'Baffle Treatment?':o.company==='atse'?o.baffle:'',
+      'Details/Notes':o.notes.trim(),
+      'Company Name':o.companyName.trim(),
+      'Customer Full Name - First Name':o.firstName.trim(),
+      'Customer Full Name - Last Name':o.lastName.trim(),
+      'Customer Email Address':o.email.trim(),
+      'Delivery Contact Person':o.contact.trim(),
+      'Delivery Phone Number':o.phone.trim(),
+      'Delivery Address':addrLines.join('\n'),
+      'Delivery Address - Street Address':o.street.trim(),
+      'Delivery Address - Street Address Line 2':o.street2.trim(),
+      'Delivery Address - City/Town':o.city.trim(),
+      'Delivery Address - Region':o.region.trim(),
+      'Delivery Address - Postal / Zip Code':o.postal.trim()
+    }
+  };
+}
+
+function confirmSubmitOrder(){
+  if(state.orderSending)return;
+  const o=state.order;
+  const problem=orderProblem(o);
+  if(problem){showToast('⚠️ '+problem);return;}
+  const co=CONFIG.COMPANIES[o.company];
+  const items=o.products.filter(r=>r.code.trim()).map(r=>`${escAttr(r.code.trim())} × ${parseInt(r.qty,10)}`).join('<br>');
+  state.modal={
+    title:'Submit Order',
+    text:`This creates the Xero invoice and sends the emails for <strong>${co.label}</strong>.<br><br>PO: <strong>${escAttr(o.ref.trim())}</strong><br>${items}`,
+    warning:null,
+    onConfirm:sendOrder
+  };
+  render();
+}
+
+async function sendOrder(){
+  if(state.orderSending)return;
+  const o=state.order;
+  state.modal=null;
+  state.orderSending=true;render();
+  try{
+    const res=await fetch(CONFIG.WEBHOOK_ORDER,{method:'POST',body:JSON.stringify(buildOrderPayload(o))});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    state.order=newOrderForm();
+    state.orderSending=false;render();
+    showToast('✓ Order sent — invoice is being created');
+  }catch(e){
+    state.orderSending=false;render();
+    showToast("❌ Couldn't confirm the order was sent — check Xero before trying again");
   }
 }
 
@@ -976,6 +1195,16 @@ function attachEvents(){
   document.querySelectorAll('[data-nzco]').forEach(btn=>{btn.onclick=()=>{state.nzCompany=btn.dataset.nzco;render();};});
   document.querySelectorAll('[data-nzfield]').forEach(inp=>{inp.oninput=()=>{state.nzForm[inp.dataset.nzfield]=inp.value;};});
   document.querySelectorAll('[data-action="submit-nzpost"]').forEach(el=>{el.onclick=submitNZPost;});
+  document.querySelectorAll('[data-ofco]').forEach(btn=>{btn.onclick=()=>{state.order=state.order||newOrderForm();state.order.company=btn.dataset.ofco;render();};});
+  document.querySelectorAll('[data-ofield]').forEach(inp=>{
+    inp.oninput=()=>{state.order[inp.dataset.ofield]=inp.value;if(inp.id==='addr-search')runAddressSearch(inp.value);};
+    inp.onchange=()=>{state.order[inp.dataset.ofield]=inp.value;};
+  });
+  document.querySelectorAll('[data-ocode]').forEach(inp=>{inp.oninput=()=>{state.order.products[+inp.dataset.ocode].code=inp.value;};});
+  document.querySelectorAll('[data-oqty]').forEach(inp=>{inp.oninput=()=>{state.order.products[+inp.dataset.oqty].qty=inp.value;};});
+  document.querySelectorAll('[data-oremove]').forEach(b=>{b.onclick=()=>{state.order.products.splice(+b.dataset.oremove,1);render();};});
+  document.querySelectorAll('[data-action="add-product"]').forEach(b=>{b.onclick=()=>{state.order.products.push({code:'',qty:'1'});render();};});
+  document.querySelectorAll('[data-action="submit-order"]').forEach(b=>{b.onclick=confirmSubmitOrder;});
   document.querySelectorAll('.tab-btn').forEach(btn=>{btn.onclick=()=>{state.activeTab=btn.dataset.tab;state.editingStock=null;state.showAllArchived=false;render();};});
   document.querySelectorAll('[data-action="refresh"]').forEach(el=>{el.onclick=()=>loadData();});
   document.querySelectorAll('[data-action="toggle-archived"]').forEach(el=>{el.onclick=()=>{state.showAllArchived=!state.showAllArchived;render();};});
