@@ -902,6 +902,7 @@ function buildOrderPayload(o){
       'Select Company':co.business,
       'Customer Reference':o.ref.trim(),
       'Product Codes':JSON.stringify(products),
+      'Product List':products.map(x=>`Product Code: ${x['Product Code']}\nQuantity: ${x['Quantity']}`).join('\n\n'),
       'Bolt Down?':o.company==='ats'?o.bolt:'',
       'Baffle Treatment?':o.company==='atse'?o.baffle:'',
       'Details/Notes':o.notes.trim(),
